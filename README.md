@@ -1,5 +1,5 @@
 # Antarctica-M.1
-The latest version of code for my MSc looking at sea ice in Antarctica.
+The latest version of code for my MSc looking at sea ice in Antarctica. Thesis can be found at this [link](https://github.com/hjelleyman/Masters-Thesis)
 
 ## Notebooks
 
