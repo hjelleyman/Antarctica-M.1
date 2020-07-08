@@ -8,9 +8,11 @@ import datetime
 import itertools
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy
+import scipy.signal
 
 # For printing headings
-from modules.plotting import print_heading
+from modules.misc import print_heading
 
 
 class dataprocessor(object):
@@ -41,7 +43,7 @@ class dataprocessor(object):
 	variables : list
 		Which Era5 variables to load.
 	"""
-	def __init__(self, rawdatafolder = 'data/', processeddatafolder = 'processeddata/'):
+	def __init__(self, rawdatafolder = 'data/', processeddatafolder = 'processed_data/'):
 		"""Generates a dataprocessor object.
 		
 		Parameters
@@ -100,12 +102,16 @@ class dataprocessor(object):
 		if self.load_indicies:
 			heading = f"Loading index data"
 			print_heading(heading)
+			self.index_data = index_data(rawdatafolder       = self.rawdatafolder,
+										 processeddatafolder = self.processeddatafolder,
+										 indicies = self.indicies)
+			self.index_data.load_data()
 
 		if self.load_ERA5:
 			heading = f"Loading ECMWF ERA5 data"
 			print_heading(heading)
 
-	def decomposition(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous']):
+	def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Summary
 		
 		Parameters
@@ -118,8 +124,12 @@ class dataprocessor(object):
 		    Description
 		"""
 		if self.load_seaice:
-			self.seaice_data.decomposition()
+			self.seaice_data.decompose_and_save(resolutions = resolutions, temporal_resolution = temporal_resolution, temporal_decomposition = temporal_decomposition, detrend = detrend)
 			
+		if self.load_indicies:
+			self.index_data.decompose_and_save(temporal_resolution = temporal_resolution, temporal_decomposition = temporal_decomposition, detrend = detrend)
+			
+	
 
 
 class seaice_data:
@@ -206,36 +216,58 @@ class seaice_data:
 		self.data = seaice
 		self.data = self.data.sortby('time')
 
-	def decomposition(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous']):
+	def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Break the data into different temporal splits.
 		"""
-		dataset = xr.Dataset({'source':self.data})
+		dataset = xr.Dataset({'source':self.data.copy()})
 
-		heading = 'Splitting the data up'
+		dataset.to_netcdf(self.output_folder+'source.nc')
+
+		heading = 'Splitting the seaice data up'
 		print_heading(heading) 
 
-		for n, temp_res, temp_decomp in itertools.product(resolutions, temporal_resolution, temporal_decomposition):
-			print(n, temp_res, temp_decomp)
+		for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
+			print(n, temp_res, temp_decomp, dt)
 			# Spatial resolution fix.
-			new_data = dataset.source.loc[:,::n,::n]
+			new_data = dataset.source.loc[:,::n,::n].copy()
 
 			# Temporal interpolation for missing data.
 			new_data = new_data.resample(time = '1MS').fillna(np.nan)
-			new_data = new_data.groupby('time.month').apply(lambda group: group.interp(method='linear'))
+			new_data = new_data.sortby(new_data.time)
+			new_data = new_data.groupby('time.month').apply(lambda group: group.sortby(group.time).interp(method='linear'))
+
+
+			# Detrend
+			if 'detrended' == dt:
+				new_data = new_data.sortby(new_data.time)
+				new_data = detrend_data(new_data)
+
+			# If anomalous remove seasonal cycle
+			if temp_decomp == 'anomalous':
+				climatology = new_data.groupby("time.month").mean("time")
+				new_data = new_data.groupby("time.month") - climatology
+
 
 			# temporal averaging
 			if temp_res == 'seasonally':
 				new_data = new_data.resample(time="QS-DEC").mean()
-				plt.plot(new_data.mean(dim = ('x','y')))
-				plt.show()
+
+			elif temp_res == 'annually':
+				new_data = new_data.resample(time="YS").mean()
+			# plt.plot(new_data.mean(dim = ('x','y')))
+			# plt.show()
+
+			# dataset = xr.Dataset({'source':self.data.copy()})
+			# dataset[f'{temp_decomp}_{temp_res}_{n}'] = new_data
+
+			new_data.name = f'{temp_decomp}_{temp_res}_{n}_{dt}'
+			new_data.to_netcdf(self.output_folder + new_data.name +'.nc')
+
+		# self.data = dataset
 				
-
-
 		print_heading('DONE')
-	def save_data():
-		"""Save data to file.
-		"""
-		pass
+
+
 
 	def readfile(self, file):
 		"""Reads a binary data file and returns the numpy data array.
@@ -288,20 +320,93 @@ class index_data:
 
 		self.indicies = indicies
 
-	def load_data():
+	def load_data(self):
 		"""Summary
 		"""
-		pass
-	
-	def temporal_decomposition():
-		"""Summary
-		"""
-		pass
+		self.data = xr.Dataset()
+		if 'DMI' in self.indicies:
+			dmi = xr.open_dataset('Data/Indicies/dmi.nc')
+			self.data['DMI'] = dmi.DMI
 
-	def save_data():
-		"""Summary
+		if 'SAM' in self.indicies:
+			sam = np.genfromtxt('Data/Indicies/newsam.1957.2007.txt', skip_header =1, skip_footer = 1)[:,1:]
+
+			index = range(1957, 2020)
+			columns = range(1,13)
+
+			sam = pd.DataFrame(data = sam, columns = columns, index = index)
+			sam = sam.stack().reset_index()
+			sam.columns = ['year', 'month', 'SAM']
+			sam['time'] = pd.to_datetime(sam.year*100+sam.month,format='%Y%m')
+			sam = sam.set_index('time').SAM
+			sam = xr.DataArray(sam)
+			self.data['SAM'] = sam
+
+		if 'IPO' in self.indicies:
+			ipo = np.genfromtxt('Data/Indicies/tpi.timeseries.ersstv5.data', skip_header = 1, skip_footer = 11)[:,1:]
+
+			index = range(1854, 2021)
+			columns = range(1,13)
+
+			ipo = pd.DataFrame(data = ipo, columns = columns, index = index)
+			ipo = ipo.stack().reset_index()
+			ipo.columns = ['year', 'month', 'IPO']
+			ipo['time'] = pd.to_datetime(ipo.year*100+ipo.month,format='%Y%m')
+			ipo = ipo.set_index('time').IPO
+			ipo = ipo[ipo>-10]
+			ipo = xr.DataArray(ipo)
+
+	def decompose_and_save(self, temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
+		"""Break the data into different temporal splits.
 		"""
-		pass
+
+		heading = 'Splitting the index data up'
+		print_heading(heading) 
+
+		for temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+			print(temp_res, temp_decomp, dt)
+			# Spatial resolution fix.
+			new_data = self.data.copy()
+
+			# Temporal interpolation for missing data.
+			new_data = new_data.resample(time = '1MS').fillna(np.nan)
+			new_data = new_data.sortby(new_data.time)
+			new_data = new_data.groupby('time.month').apply(lambda group: group.sortby(group.time).interp(method='linear'))
+
+
+			# Detrend
+			if 'detrended' == dt:
+				for index in new_data:
+					subdata = new_data[index].copy()
+					subdata = subdata.sortby(subdata.time)
+					subdata = subdata.dropna(dim='time')
+					subdata = detrend_data(subdata)
+					new_data[index] = subdata
+
+			# If anomalous remove seasonal cycle
+			if temp_decomp == 'anomalous':
+				climatology = new_data.groupby("time.month").mean("time")
+				new_data = new_data.groupby("time.month") - climatology
+
+
+			# temporal averaging
+			if temp_res == 'seasonally':
+				new_data = new_data.resample(time="QS-DEC").mean()
+
+			elif temp_res == 'annually':
+				new_data = new_data.resample(time="YS").mean()
+			# plt.plot(new_data.mean(dim = ('x','y')))
+			# plt.show()
+
+			# dataset = xr.Dataset({'source':self.data.copy()})
+			# dataset[f'{temp_decomp}_{temp_res}_{n}'] = new_data
+
+			new_dataname = f'{temp_decomp}_{temp_res}_{dt}'
+			new_data.to_netcdf(self.output_folder + new_dataname +'.nc')
+
+		# self.data = dataset
+				
+		print_heading('DONE')
 
 
 
@@ -350,12 +455,15 @@ class era5_data:
 		"""
 		pass
 	
-	def temporal_decomposition():
+	def decompose_and_save():
 		"""Summary
 		"""
 		pass
 
-	def save_data():
-		"""Summary
-		"""
-		pass
+def detrend_data(t):
+    return xr.apply_ufunc(scipy.signal.detrend, t,
+                          input_core_dims=[['time']],
+                          vectorize=True, # !Important!
+                          dask='parallelized',
+                          output_core_dims=[['time']],
+                          )

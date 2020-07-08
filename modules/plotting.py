@@ -1,17 +1,44 @@
-import os
-size = os.get_terminal_size()
+import xarray as xr
+import matplotlib.pyplot as plt
+import itertools
+from modules.misc import seaice_area_mean
 
-def print_heading(heading):
-    """Summary
+################################################
+#                Time series                   #
+################################################
+
+def plot_all_seaice(resolutions, temporal_resolution, temporal_decomposition, detrend):
+    for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
+        plot_seaice_timeseries(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended')
+
+def plot_seaice_timeseries(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False):
+
+    output_folder = 'processed_data/SIC/'
+
+    if anomlous:
+        temp_decomp = 'anomalous'
+    else:
+        temp_decomp = 'raw'
+
+
+    title = temp_decomp.capitalize() + ' '
+
+    if detrend:
+        dt = 'detrended'
+        title += dt + ' '
+    else:
+        dt = 'raw'
+
+    title += temporal_resolution
+    title += ' mean SIC in Antarctica'
+
+
+    seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
+    seaice = xr.open_dataset(output_folder + seaicename +'.nc')
     
-    Parameters
-    ----------
-    heading : TYPE
-        Description
-    """
-    sidespace = size[0]//4
-    if len(heading)%2==1:
-        heading = ' '+heading
-    print('-'*((size[0]-2*sidespace)//2 * 2))
-    print(' '*((size[0]-2*sidespace-2-len(heading))//2)+heading+' '*((size[0]-2*sidespace-2-len(heading))//2)+' ')
-    print('-'*((size[0]-2*sidespace)//2 * 2))
+
+
+
+    plt.plot(seaice.time, seaice[seaicename].mean(dim = ('x', 'y')))
+    plt.title(title)
+    plt.show()
