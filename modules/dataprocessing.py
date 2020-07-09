@@ -79,7 +79,7 @@ class dataprocessor(object):
 		Deleted Parameters
 		------------------
 		n : int, optional
-		    Spatial resolution parameter.
+			Spatial resolution parameter.
 		"""
 
 		# Setting which datasets to load for processing
@@ -111,17 +111,17 @@ class dataprocessor(object):
 			heading = f"Loading ECMWF ERA5 data"
 			print_heading(heading)
 
-	def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
+	def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Summary
 		
 		Parameters
 		----------
 		resolutions : list, optional
-		    Description
+			Description
 		temporal_resolution : list, optional
-		    Description
+			Description
 		temporal_decomp : list, optional
-		    Description
+			Description
 		"""
 		if self.load_seaice:
 			self.seaice_data.decompose_and_save(resolutions = resolutions, temporal_resolution = temporal_resolution, temporal_decomposition = temporal_decomposition, detrend = detrend)
@@ -149,7 +149,7 @@ class seaice_data:
 	Deleted Attributes
 	------------------
 	n : int
-	    spatial resolution parameter.
+		spatial resolution parameter.
 	"""
 	
 	def __init__(self, rawdatafolder = 'data/', processeddatafolder = 'processeddata/', n = 5):
@@ -216,7 +216,7 @@ class seaice_data:
 		self.data = seaice
 		self.data = self.data.sortby('time')
 
-	def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
+	def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Break the data into different temporal splits.
 		"""
 		dataset = xr.Dataset({'source':self.data.copy()})
@@ -236,6 +236,8 @@ class seaice_data:
 			new_data = new_data.sortby(new_data.time)
 			new_data = new_data.groupby('time.month').apply(lambda group: group.sortby(group.time).interp(method='linear'))
 
+			if temp_res == 'seasonal':
+				new_data = new_data[:-1]
 
 			# Detrend
 			if 'detrended' == dt:
@@ -249,10 +251,10 @@ class seaice_data:
 
 
 			# temporal averaging
-			if temp_res == 'seasonally':
+			if temp_res == 'seasonal':
 				new_data = new_data.resample(time="QS-DEC").mean()
 
-			elif temp_res == 'annually':
+			elif temp_res == 'annual':
 				new_data = new_data.resample(time="YS").mean()
 			# plt.plot(new_data.mean(dim = ('x','y')))
 			# plt.show()
@@ -295,11 +297,11 @@ class index_data:
 	Attributes
 	----------
 	indicies : list
-	    Which indicies to load.
+		Which indicies to load.
 	output_folder : str
-	    Path to output folder.
+		Path to output folder.
 	source_folder : str
-	    Path to source folder.
+		Path to source folder.
 	"""
 
 	def __init__(self, rawdatafolder = 'data/', processeddatafolder = 'processeddata/', indicies = ['SAM']):
@@ -312,7 +314,7 @@ class index_data:
 		processeddatafolder : str, optional
 			File path for processed data.
 		indicies : list, optional
-		    which indicies to load.
+			which indicies to load.
 		"""
 
 		self.source_folder = rawdatafolder + 'indicies/'
@@ -356,7 +358,7 @@ class index_data:
 			ipo = ipo[ipo>-10]
 			ipo = xr.DataArray(ipo)
 
-	def decompose_and_save(self, temporal_resolution = ['monthly', 'seasonally', 'annually'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
+	def decompose_and_save(self, temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Break the data into different temporal splits.
 		"""
 
@@ -390,10 +392,10 @@ class index_data:
 
 
 			# temporal averaging
-			if temp_res == 'seasonally':
+			if temp_res == 'seasonal':
 				new_data = new_data.resample(time="QS-DEC").mean()
 
-			elif temp_res == 'annually':
+			elif temp_res == 'annual':
 				new_data = new_data.resample(time="YS").mean()
 			# plt.plot(new_data.mean(dim = ('x','y')))
 			# plt.show()
@@ -418,16 +420,16 @@ class era5_data:
 	Attributes
 	----------
 	output_folder : str
-	    Path to output folder.
+		Path to output folder.
 	source_folder : str
-	    Path to source folder.
+		Path to source folder.
 	variables : list
-	    Which variables to load.
+		Which variables to load.
 	
 	Deleted Attributes
 	------------------
 	n : int
-	    Spatial resolution parameter.
+		Spatial resolution parameter.
 	"""
 
 	def __init__(self, rawdatafolder = 'data/', processeddatafolder = 'processeddata/', variables = ['SAM']):
@@ -440,7 +442,7 @@ class era5_data:
 		processeddatafolder : str, optional
 			File path for processed data.
 		variables : list, optional
-		    which variables to laod.
+			which variables to laod.
 		n : int, optional
 			Spatial resolution parameter.
 		"""
@@ -461,9 +463,50 @@ class era5_data:
 		pass
 
 def detrend_data(t):
-    return xr.apply_ufunc(scipy.signal.detrend, t,
-                          input_core_dims=[['time']],
-                          vectorize=True, # !Important!
-                          dask='parallelized',
-                          output_core_dims=[['time']],
-                          )
+	return xr.apply_ufunc(scipy.signal.detrend, t,
+						  input_core_dims=[['time']],
+						  vectorize=True, # !Important!
+						  dask='parallelized',
+						  output_core_dims=[['time']],
+						  )
+
+if __name__ == "__main__":
+	import itertools
+
+	# What data to load
+	load_seaice   = True
+	load_indicies = True
+	load_ERA5     = False
+
+	# What indicies and variables
+	indicies  = ['SAM','DMI','IPO']
+	variables = ['t2m']
+
+	# Resolutions to save data as.
+	resolutions = [1,5]
+	n = 5
+
+	# temporal averages
+	temporal_resolution = ['monthly', 'seasonal', 'annual']
+
+	# temporal_breakdown
+	temporal_decomposition = ['raw', 'anomalous']
+
+	# detrending
+	detrend = ['raw', 'detrended']
+
+	# Generate a processor object
+	processor = dataprocessor(rawdatafolder = 'data/', processeddatafolder = 'processed_data/')
+
+	# Load in datasets
+	processor.load_data(load_seaice   = load_seaice,
+						load_indicies = load_indicies,
+						load_ERA5     = load_ERA5,
+						indicies      = indicies,
+						variables     = variables)
+
+	# Change resolution of data
+	processor.decompose_and_save(resolutions            = resolutions,
+								 temporal_resolution    = temporal_resolution,
+								 temporal_decomposition = temporal_decomposition,
+								 detrend                = detrend)
