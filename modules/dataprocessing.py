@@ -325,7 +325,7 @@ class index_data:
 	def load_data(self):
 		"""Summary
 		"""
-		self.data = xr.Dataset()
+		self.data = {}
 		if 'DMI' in self.indicies:
 			dmi = xr.open_dataset('Data/Indicies/dmi.nc')
 			self.data['DMI'] = dmi.DMI
@@ -357,6 +357,7 @@ class index_data:
 			ipo = ipo.set_index('time').IPO
 			ipo = ipo[ipo>-10]
 			ipo = xr.DataArray(ipo)
+			self.data['IPO'] = ipo
 
 	def decompose_and_save(self, temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Break the data into different temporal splits.
@@ -365,10 +366,10 @@ class index_data:
 		heading = 'Splitting the index data up'
 		print_heading(heading) 
 
-		for temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+		for temp_res, temp_decomp, dt, index in itertools.product(temporal_resolution, temporal_decomposition, detrend, self.data):
 			print(temp_res, temp_decomp, dt)
 			# Spatial resolution fix.
-			new_data = self.data.copy()
+			new_data = self.data[index].copy()
 
 			# Temporal interpolation for missing data.
 			new_data = new_data.resample(time = '1MS').fillna(np.nan)
@@ -378,12 +379,11 @@ class index_data:
 
 			# Detrend
 			if 'detrended' == dt:
-				for index in new_data:
-					subdata = new_data[index].copy()
-					subdata = subdata.sortby(subdata.time)
-					subdata = subdata.dropna(dim='time')
-					subdata = detrend_data(subdata)
-					new_data[index] = subdata
+				subdata = new_data.copy()
+				subdata = subdata.sortby(subdata.time)
+				subdata = subdata.dropna(dim='time')
+				subdata = detrend_data(subdata)
+				new_data[index] = subdata
 
 			# If anomalous remove seasonal cycle
 			if temp_decomp == 'anomalous':
@@ -403,7 +403,7 @@ class index_data:
 			# dataset = xr.Dataset({'source':self.data.copy()})
 			# dataset[f'{temp_decomp}_{temp_res}_{n}'] = new_data
 
-			new_dataname = f'{temp_decomp}_{temp_res}_{dt}'
+			new_dataname = f'{index}_{temp_decomp}_{temp_res}_{dt}'
 			new_data.to_netcdf(self.output_folder + new_dataname +'.nc')
 
 		# self.data = dataset
