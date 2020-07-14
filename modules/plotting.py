@@ -160,6 +160,7 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
         detrend (bool, optional): Wheather to load detrended data or not.
         imagefolder (str, optional): Where to save output image.
         indexname (str, optional): Which index to load and plot.
+        n (int, optional): Description
     """
     output_folder = 'processed_data/'
 
@@ -219,4 +220,65 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
 
     plt.title(title)
     plt.savefig(imagefolder + f'/SIC_{indexname}_{filename}' + '.pdf')
+    plt.show()
+
+
+################################################
+#               Correlations                   #
+################################################
+
+############ Single Correlations ###############
+
+def plot_single_correlations(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI']):
+    """Plots all the index timeseries.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+        indicies (list, optional): what indicies to load.
+    """
+    for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+        plot_single_correlation(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+
+def plot_single_correlation(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/single/', n = 5):
+    """Summary
+    
+    Args:
+        anomlous (bool, optional): Description
+        temporal_resolution (str, optional): Description
+        detrend (bool, optional): Description
+        imagefolder (str, optional): Description
+        n (int, optional): Description
+    """
+    filename = f'processed_data/correlations/single/corr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
+
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+
+    p_dataset = xr.open_dataset(f'processed_data/correlations/single/pval_{temp_decomp}_{temporal_resolution}_{detrend}_{n}.nc')
+    p_values   = np.array([p_dataset[i].values for i in p_dataset])
+
+    title = temp_decomp.capitalize() + ' '
+    if detrend == 'detrended':
+        title += detrend + ' '
+
+    title += temporal_resolution
+    title += f' indicies correlated with SIC'
+
+    fig, ax = plt.subplots()
+    mask = np.array(p_values) <= 0.05
+    bar1 = plt.bar(indicies[mask], values[mask], label = 'significant')
+    bar2 = plt.bar(indicies[~mask], values[~mask], label = 'insignificant')
+
+    for rect in bar1+bar2:
+        height = rect.get_height()
+        y = max(0,height)
+        ax.text(rect.get_x() + rect.get_width()/2.0, y+0.01, f'{height:.2f}', ha='center', va='bottom')
+    plt.title(title)
+    plt.legend(bbox_to_anchor=(0.99, -0.15), ncol = 2, loc = 'upper right')
+    plt.ylim([-1,1])
     plt.show()
