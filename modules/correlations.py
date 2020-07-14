@@ -171,9 +171,9 @@ class correlator(object):
             sic = self.seaice_data.copy()
             ind = self.index_data[index].copy()
 
-            times = list(set(sic.time.values) & set(ind.time.values))
-            sic = sic.loc[times, :, :].mean(dim=('x','y'))
-            ind = ind.loc[times]
+            times = list(set(set(sic.time.values) & set(ind.time.values)))
+            sic = sic.sel(time=times).mean(dim=('x','y'))
+            ind = ind.sel(time=times)
 
             sic = sic.sortby(sic.time)
             ind = ind.sortby(ind.time)
@@ -190,9 +190,9 @@ class correlator(object):
             sic = self.seaice_data.copy()
             ind = self.index_data[index].copy()
 
-            times = list(set(sic.time.values) & set(ind.time.values))
-            sic = sic.loc[times, :, :]
-            ind = ind.loc[times]
+            times = list(set(set(sic.time.values) & set(ind.time.values)))
+            sic = sic.sel(time=times)
+            ind = ind.sel(time=times)
 
             sic = sic.sortby(sic.time)
             ind = ind.sortby(ind.time)

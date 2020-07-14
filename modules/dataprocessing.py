@@ -277,7 +277,7 @@ class seaice_data:
 			# dataset = xr.Dataset({'source':self.data.copy()})
 			# dataset[f'{temp_decomp}_{temp_res}_{n}'] = new_data
 
-			
+
 			# Detrend
 			if 'detrended' == dt:
 				new_data = new_data.sortby(new_data.time)
@@ -408,6 +408,8 @@ class index_data:
 			new_data = new_data.resample(time = '1MS').fillna(np.nan)
 			new_data = new_data.sortby(new_data.time)
 			new_data = new_data.groupby('time.month').apply(lambda group: group.sortby(group.time).interp(method='linear'))
+
+			new_data = new_data.loc[new_data.time.dt.year >= 1979]
 
 			# If anomalous remove seasonal cycle
 			if temp_decomp == 'anomalous':
