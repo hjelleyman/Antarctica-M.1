@@ -9,3 +9,5 @@ font.family : computer modern
 font.serif : Computer Modern Roman
 font.sans-serif : Computer Modern Sans Serif
 font.monospace : Computer Modern Typewriter
+
+axes.prop_cycle : cycler('color', ['177E89', 'EA1B10', '2ca02c', 'd62728', '9467bd', '8c564b', 'e377c2', '7f7f7f', 'bcbd22', '17becf'])

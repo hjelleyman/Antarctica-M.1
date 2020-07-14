@@ -26,6 +26,8 @@ class dataprocessor(object):
 	
 	Attributes
 	----------
+	index_data : TYPE
+	    Description
 	indicies : list
 		Which indicies to process.
 	load_ERA5 : bool
@@ -120,8 +122,15 @@ class dataprocessor(object):
 			Description
 		temporal_resolution : list, optional
 			Description
+		temporal_decomposition : list, optional
+		    Description
+		detrend : list, optional
+		    Description
+		
+		Deleted Parameters
+		------------------
 		temporal_decomp : list, optional
-			Description
+		    Description
 		"""
 		if self.load_seaice:
 			self.seaice_data.decompose_and_save(resolutions = resolutions, temporal_resolution = temporal_resolution, temporal_decomposition = temporal_decomposition, detrend = detrend)
@@ -218,6 +227,17 @@ class seaice_data:
 
 	def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Break the data into different temporal splits.
+		
+		Parameters
+		----------
+		resolutions : list, optional
+		    Description
+		temporal_resolution : list, optional
+		    Description
+		temporal_decomposition : list, optional
+		    Description
+		detrend : list, optional
+		    Description
 		"""
 		dataset = xr.Dataset({'source':self.data.copy()})
 
@@ -239,11 +259,6 @@ class seaice_data:
 			if temp_res == 'seasonal':
 				new_data = new_data[:-1]
 
-			# Detrend
-			if 'detrended' == dt:
-				new_data = new_data.sortby(new_data.time)
-				new_data = detrend_data(new_data)
-
 			# If anomalous remove seasonal cycle
 			if temp_decomp == 'anomalous':
 				climatology = new_data.groupby("time.month").mean("time")
@@ -261,6 +276,13 @@ class seaice_data:
 
 			# dataset = xr.Dataset({'source':self.data.copy()})
 			# dataset[f'{temp_decomp}_{temp_res}_{n}'] = new_data
+
+			
+			# Detrend
+			if 'detrended' == dt:
+				new_data = new_data.sortby(new_data.time)
+				new_data = detrend_data(new_data)
+
 
 			new_data.name = f'{temp_decomp}_{temp_res}_{n}_{dt}'
 			new_data.to_netcdf(self.output_folder + new_data.name +'.nc')
@@ -296,6 +318,8 @@ class index_data:
 	
 	Attributes
 	----------
+	data : dict
+	    Description
 	indicies : list
 		Which indicies to load.
 	output_folder : str
@@ -361,6 +385,15 @@ class index_data:
 
 	def decompose_and_save(self, temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
 		"""Break the data into different temporal splits.
+		
+		Parameters
+		----------
+		temporal_resolution : list, optional
+		    Description
+		temporal_decomposition : list, optional
+		    Description
+		detrend : list, optional
+		    Description
 		"""
 
 		heading = 'Splitting the index data up'
@@ -375,15 +408,6 @@ class index_data:
 			new_data = new_data.resample(time = '1MS').fillna(np.nan)
 			new_data = new_data.sortby(new_data.time)
 			new_data = new_data.groupby('time.month').apply(lambda group: group.sortby(group.time).interp(method='linear'))
-
-
-			# Detrend
-			if 'detrended' == dt:
-				subdata = new_data.copy()
-				subdata = subdata.sortby(subdata.time)
-				subdata = subdata.dropna(dim='time')
-				subdata = detrend_data(subdata)
-				new_data[index] = subdata
 
 			# If anomalous remove seasonal cycle
 			if temp_decomp == 'anomalous':
@@ -402,6 +426,15 @@ class index_data:
 
 			# dataset = xr.Dataset({'source':self.data.copy()})
 			# dataset[f'{temp_decomp}_{temp_res}_{n}'] = new_data
+
+
+			# Detrend
+			if 'detrended' == dt:
+				subdata = new_data.copy()
+				subdata = subdata.sortby(subdata.time)
+				subdata = subdata.dropna(dim='time')
+				subdata = detrend_data(subdata)
+				new_data[index] = subdata
 
 			new_dataname = f'{index}_{temp_decomp}_{temp_res}_{dt}'
 			new_data.to_netcdf(self.output_folder + new_dataname +'.nc')
@@ -443,8 +476,11 @@ class era5_data:
 			File path for processed data.
 		variables : list, optional
 			which variables to laod.
+		
+		Deleted Parameters
+		------------------
 		n : int, optional
-			Spatial resolution parameter.
+		    Spatial resolution parameter.
 		"""
 
 		self.source_folder = rawdatafolder + 'ECMWF/'
@@ -463,6 +499,18 @@ class era5_data:
 		pass
 
 def detrend_data(t):
+	"""Summary
+	
+	Parameters
+	----------
+	t : TYPE
+	    Description
+	
+	Returns
+	-------
+	TYPE
+	    Description
+	"""
 	return xr.apply_ufunc(scipy.signal.detrend, t,
 						  input_core_dims=[['time']],
 						  vectorize=True, # !Important!
