@@ -337,20 +337,10 @@ def plot_spatial_correlation(anomlous = False, temporal_resolution = 'monthly', 
 
     title += temporal_resolution
     title += f' indicies correlated with SIC'
-    cdict = {'red':   [[0.0,  234/255, 234/255],
-                       [0.5,  253/255, 253/255],
-                       [1.0,  23/255,  23/255]],
-             'green': [[0.0,  27/255,  27/255],
-                       [0.5,  231/255, 231/255],
-                       [1.0,  126/255, 126/255]],
-             'blue':  [[0.0,  16/255,  16/255],
-                       [0.5,  76/255,  76/255],
-                       [1.0,  1737255, 137/255]]}
-
-    custom_colormap = LinearSegmentedColormap('BlueRed1', cdict)
 
     divnorm = TwoSlopeNorm(vmin=-1, vcenter=0, vmax=1)
-    fig, ax = plt.subplots(1,len(indicies),subplot_kw={'projection': ccrs.SouthPolarStereo()})
+    fig, ax = plt.subplots(2,2,subplot_kw={'projection': ccrs.SouthPolarStereo()}, figsize = (5,6))
+    ax = ax.flatten()
     for i in range(len(indicies)):
         contor = ax[i].contourf(dataset.x, dataset.y, values[i], cmap = 'RdBu', norm = divnorm, transform=ccrs.SouthPolarStereo())
         ax[i].set_axis_off()
