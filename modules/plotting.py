@@ -277,16 +277,21 @@ def plot_single_correlation(anomlous = False, temporal_resolution = 'monthly', d
     title += f' indicies correlated with SIC'
 
     fig, ax = plt.subplots()
-    mask = np.array(p_values) <= 0.05
-    bar1 = plt.bar(indicies[mask], values[mask], label = 'significant')
-    bar2 = plt.bar(indicies[~mask], values[~mask], label = 'insignificant')
+    significant = np.array(p_values) <= 0.05
+    colors = np.array(['#177E89']*len(indicies))
+    colors[~significant] = '#EA1B10'
+    bar = plt.bar(indicies, values, color = colors)
 
-    for rect in bar1+bar2:
+    i = 0
+    for rect in bar:
         height = rect.get_height()
         y = max(0,height)
-        ax.text(rect.get_x() + rect.get_width()/2.0, y+0.01, f'{height:.2f}', ha='center', va='bottom')
+        y_low = min(0,height)
+        ax.text(rect.get_x() + rect.get_width()/2.0, y+0.01, f'corr = {height:.2f}', ha='center', va='bottom')
+        ax.text(rect.get_x() + rect.get_width()/2.0, y_low-.21, f'pval = {p_values[i]:.2f}', ha='center', va='bottom')
+        i+=1
     plt.title(title)
-    plt.legend(bbox_to_anchor=(0.99, -0.15), ncol = 2, loc = 'upper right')
+    # plt.legend(bbox_to_anchor=(0.99, -0.15), ncol = 2, loc = 'upper right')
     plt.ylim([-1,1])
     plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
     plt.show()
