@@ -7,6 +7,13 @@ import itertools
 import glob
 from modules.misc import seaice_area_mean
 import numpy as np
+from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
+from matplotlib import cm
+import cartopy.crs as ccrs
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.axes_grid1 import AxesGrid
+
+
 
 
 ################################################
@@ -73,7 +80,7 @@ def plot_seaice_timeseries(anomlous = False, temporal_resolution = 'monthly', sp
 
 ################## indicies #####################
 
-def plot_all_indicies(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI']):
+def plot_all_indicies(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
     """Plots all the index timeseries.
     
     Args:
@@ -137,7 +144,7 @@ def plot_index_timeseries(anomlous = False, temporal_resolution = 'monthly', det
 
 ################## indicies and sic #####################
 
-def plot_all_indicies_sic(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI']):
+def plot_all_indicies_sic(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
     """Plots all the index timeseries.
     
     Args:
@@ -229,7 +236,7 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
 
 ############ Single Correlations ###############
 
-def plot_single_correlations(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI']):
+def plot_single_correlations(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
     """Plots all the index timeseries.
     
     Args:
@@ -281,4 +288,71 @@ def plot_single_correlation(anomlous = False, temporal_resolution = 'monthly', d
     plt.title(title)
     plt.legend(bbox_to_anchor=(0.99, -0.15), ncol = 2, loc = 'upper right')
     plt.ylim([-1,1])
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
+    plt.show()
+
+############ Spatial Correlations ###############
+
+def plot_spatial_correlations(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI']):
+    """Plots all the index timeseries.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+        indicies (list, optional): what indicies to load.
+    """
+    for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+        plot_spatial_correlation(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/spatial/', n = 1)
+
+def plot_spatial_correlation(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+    """Summary
+    
+    Args:
+        anomlous (bool, optional): Description
+        temporal_resolution (str, optional): Description
+        detrend (bool, optional): Description
+        imagefolder (str, optional): Description
+        n (int, optional): Description
+    """
+    filename = f'processed_data/correlations/spatial/corr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
+
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+
+    p_dataset = xr.open_dataset(f'processed_data/correlations/spatial/pval_{temp_decomp}_{temporal_resolution}_{detrend}_{n}.nc')
+    p_values   = np.array([p_dataset[i].values for i in p_dataset])
+
+    title = temp_decomp.capitalize() + ' '
+    if detrend == 'detrended':
+        title += detrend + ' '
+
+    title += temporal_resolution
+    title += f' indicies correlated with SIC'
+    cdict = {'red':   [[0.0,  234/255, 234/255],
+                       [0.5,  253/255, 253/255],
+                       [1.0,  23/255,  23/255]],
+             'green': [[0.0,  27/255,  27/255],
+                       [0.5,  231/255, 231/255],
+                       [1.0,  126/255, 126/255]],
+             'blue':  [[0.0,  16/255,  16/255],
+                       [0.5,  76/255,  76/255],
+                       [1.0,  1737255, 137/255]]}
+
+    custom_colormap = LinearSegmentedColormap('BlueRed1', cdict)
+
+    divnorm = TwoSlopeNorm(vmin=-1, vcenter=0, vmax=1)
+    fig, ax = plt.subplots(1,len(indicies),subplot_kw={'projection': ccrs.SouthPolarStereo()})
+    for i in range(len(indicies)):
+        contor = ax[i].contourf(dataset.x, dataset.y, values[i], cmap = 'RdBu', norm = divnorm, transform=ccrs.SouthPolarStereo())
+        ax[i].set_axis_off()
+        ax[i].set_title(indicies[i])
+        ax[i].coastlines()
+    fig.suptitle(title)
+    cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), shrink=0.95)
+    # plt.colorbar(contor)
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
     plt.show()
