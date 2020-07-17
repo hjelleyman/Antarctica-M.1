@@ -14,3 +14,5 @@ axes.prop_cycle : cycler('color', ['177E89', 'EA1B10', '2ca02c', 'd62728', '9467
 
 xtick.bottom : False
 ytick.left : False
+
+hatch.linewidth : 0.1
