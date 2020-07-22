@@ -444,3 +444,83 @@ def plot_spatial_correlation_with_significance(anomlous = False, temporal_resolu
     cbar.set_label('Correlation')
     plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
     plt.show()
+
+
+################################################
+#               Regressions                    #
+################################################
+
+############ Single Regressions ################
+
+def plot_all_regression_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+    """Plots all the index timeseries.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+        indicies (list, optional): what indicies to load.
+    """
+    for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+        plot_regression_scatter(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+
+def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+    """Summary
+    
+    Args:
+        anomlous (bool, optional): Description
+        temporal_resolution (str, optional): Description
+        detrend (bool, optional): Description
+        imagefolder (str, optional): Description
+        n (int, optional): Description
+    """
+    filename = f'processed_data/regressions/single/regr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
+
+
+
+    seaicename = f'{temp_decomp}_{temporal_resolution}_{n}_{detrend}'
+    seaice_data = xr.open_dataset('processed_data/SIC/' + seaicename +'.nc')
+    seaice_data = seaice_data[seaicename]
+
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+
+    b_dataset = xr.open_dataset(f'processed_data/regressions/single/bval_{temp_decomp}_{temporal_resolution}_{detrend}_{n}.nc')
+    b_values  = np.array([b_dataset[i].values for i in b_dataset])
+
+
+    index_data = []
+    for indexname in indicies:
+        filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{detrend}'
+        index_data += [xr.open_dataset('processed_data/INDICIES/' + filename +'.nc')[indexname]]
+
+    title = temp_decomp.capitalize() + ' '
+    if detrend == 'detrended':
+        title += detrend + ' '
+
+    title += temporal_resolution
+    title += f' indicies correlated with SIC'
+
+    fig, ax = plt.subplots(2,2, figsize = (5,6))
+    ax = ax.flatten()
+
+    times = list(set.intersection(set(seaice_data.time.values), *(set(index_data[i].time.values)for i in range(len(indicies)))))
+
+    seaice_data = seaice_data.sel(time=times).sortby('time').mean(dim=('x','y'))
+    index_data = [ind.sel(time=times).sortby('time') for ind in index_data]
+
+    # Plotting
+    for i in range(len(indicies)):
+        xlength  = 1.25 * max(-min(index_data[i]),max(index_data[i]))
+        ylength  = 1.25 * max(-min(seaice_data),max(seaice_data))
+        ax[i].scatter(index_data[i], seaice_data, c = seaice_data.time)
+        ax[i].axhline(0, alpha = 0.5)
+        ax[i].axvline(0, alpha = 0.5)
+        ax[i].set_xlim(-xlength,xlength)
+        ax[i].set_ylim(-ylength,ylength)
+        ax[i].set_xlabel(indicies[i])
+    fig.suptitle(title)
+    plt.show()
