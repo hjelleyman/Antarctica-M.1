@@ -254,7 +254,7 @@ class regressor(object):
                                      linear_model, new_indicies, sic,
                                      input_core_dims=[[], ['time','variable'], ['time']],
                                      vectorize=True, # !Important!
-                                     # dask='parallelized',
+                                     dask='parallelized',
                                      output_dtypes=[float]*5,
                                      output_core_dims=[[]]*5
                                      )
@@ -301,5 +301,4 @@ class regressor(object):
         xarray.to_netcdf(self.outputfolder + 'spatial/cov_' + filename + '.nc')
 
         # Spatial multiple regressions
-        print(self.params)
         self.params.to_netcdf(self.outputfolder + 'spatial_multiple/regr_' + filename + '.nc')
