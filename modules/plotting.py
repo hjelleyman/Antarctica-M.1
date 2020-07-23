@@ -512,6 +512,12 @@ def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', d
     seaice_data = seaice_data.sel(time=times).sortby('time').mean(dim=('x','y'))
     index_data = [ind.sel(time=times).sortby('time') for ind in index_data]
 
+    for ind in index_data:
+        ind = (ind - ind.mean()) 
+        ind =  ind / ind.std()
+
+    seaice_data = (seaice_data - seaice_data.mean()) 
+    seaice_data =  seaice_data / seaice_data.std()
     # Plotting
     for i in range(len(indicies)):
         xlength  = 1.25 * max(-min(index_data[i]),max(index_data[i]))
@@ -522,5 +528,62 @@ def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', d
         ax[i].set_xlim(-xlength,xlength)
         ax[i].set_ylim(-ylength,ylength)
         ax[i].set_xlabel(indicies[i])
+
+        yfit = values[i] * np.array([-xlength,xlength]) + b_values[i]
+        ax[i].plot(np.array([-xlength,xlength]), yfit, color = 'black')
     fig.suptitle(title)
     plt.show()
+
+def gen_single_regression_table(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+    n = 1
+    regressions = pd.DataFrame(columns = indicies)
+    pvalues     = pd.DataFrame(columns = indicies)
+    rvalues     = pd.DataFrame(columns = indicies)
+    bvalues     = pd.DataFrame(columns = indicies)
+    stderr      = pd.DataFrame(columns = indicies)
+    for temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+            
+        folder = 'processed_data/regressions/single/'
+        filename = f'{temp_decomp}_{temp_res}_{dt}_{n}'
+
+        dataset = xr.open_dataset(folder + 'regr_' + filename + '.nc')
+        indicies = np.array([i for i in dataset])
+        values   = np.array([dataset[i].values for i in dataset])
+        index_name = f'{temp_decomp} {temp_res}'
+        if dt == 'detrended': index_name += f' {dt}'
+        regressions.loc[index_name,indicies] = values
+
+        dataset = xr.open_dataset(folder + 'pval_' + filename + '.nc')
+        indicies = np.array([i for i in dataset])
+        values   = np.array([dataset[i].values for i in dataset])
+        index_name = f'{temp_decomp} {temp_res}'
+        if dt == 'detrended': index_name += f' {dt}'
+        pvalues.loc[index_name,indicies] = values
+
+        dataset = xr.open_dataset(folder + 'rval_' + filename + '.nc')
+        indicies = np.array([i for i in dataset])
+        values   = np.array([dataset[i].values for i in dataset])
+        index_name = f'{temp_decomp} {temp_res}'
+        if dt == 'detrended': index_name += f' {dt}'
+        rvalues.loc[index_name,indicies] = values
+
+        dataset = xr.open_dataset(folder + 'bval_' + filename + '.nc')
+        indicies = np.array([i for i in dataset])
+        values   = np.array([dataset[i].values for i in dataset])
+        index_name = f'{temp_decomp} {temp_res}'
+        if dt == 'detrended': index_name += f' {dt}'
+        bvalues.loc[index_name,indicies] = values
+
+        dataset = xr.open_dataset(folder + 'std_err_' + filename + '.nc')
+        indicies = np.array([i for i in dataset])
+        values   = np.array([dataset[i].values for i in dataset])
+        index_name = f'{temp_decomp} {temp_res}'
+        if dt == 'detrended': index_name += f' {dt}'
+        stderr.loc[index_name,indicies] = values
+
+    regressions.to_csv('images/regressions/single/regressions.csv')
+    pvalues.to_csv('images/regressions/single/pvalues.csv')
+    rvalues.to_csv('images/regressions/single/rvalues.csv')
+    bvalues.to_csv('images/regressions/single/bvalues.csv')
+    stderr.to_csv('images/regressions/single/stderr.csv')
+    return regressions, pvalues, rvalues, bvalues, stderr
