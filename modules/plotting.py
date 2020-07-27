@@ -587,3 +587,54 @@ def gen_single_regression_table(resolutions, temporal_resolution, temporal_decom
     bvalues.to_csv('images/regressions/single/bvalues.csv')
     stderr.to_csv('images/regressions/single/stderr.csv')
     return regressions, pvalues, rvalues, bvalues, stderr
+
+
+############ Single Spatial Regressions ################
+
+def plot_all_regression_spatial(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+    """Plots all the index timeseries.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+        indicies (list, optional): what indicies to load.
+    """
+    for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+        plot_regression_spatial(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+
+def plot_regression_spatial(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+    """Summary
+    
+    Args:
+        anomlous (bool, optional): Description
+        temporal_resolution (str, optional): Description
+        detrend (bool, optional): Description
+        imagefolder (str, optional): Description
+        n (int, optional): Description
+    """
+    filename = f'processed_data/regressions/spatial/regr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
+
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+
+    title = temp_decomp.capitalize() + ' '
+    if detrend == 'detrended':
+        title += detrend + ' '
+
+    title += temporal_resolution
+    title += f' SIC regressed against'
+
+    divnorm = TwoSlopeNorm(vmin=-1, vcenter=0, vmax=1)
+    fig, ax = plt.subplots(2,2,subplot_kw={'projection': ccrs.SouthPolarStereo()}, figsize = (5,5))
+    ax = ax.flatten()
+
+    # Plotting
+    print(dataset)
+    for i in range(len(indicies)):
+        contor = ax[i].contourf(dataset.x, dataset.y, values[i], cmap = 'RdBu', norm = divnorm, transform=ccrs.SouthPolarStereo())
+    fig.suptitle(title)
+    plt.show()

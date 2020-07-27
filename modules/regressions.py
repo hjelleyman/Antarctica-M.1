@@ -289,16 +289,16 @@ class regressor(object):
         xarray.to_netcdf(self.outputfolder + 'single/std_err_' + filename + '.nc')
 
         # Single multiple regressions
-        self.spatial_regressions.to_netcdf(self.outputfolder + 'single_multiple/regr_' + filename + '.nc')
-        self.spatial_pvalue.to_netcdf(self.outputfolder + 'single_multiple/pval_' + filename + '.nc')
-        self.spatial_rvalue.to_netcdf(self.outputfolder + 'single_multiple/rval_' + filename + '.nc')
-        self.spatial_b.to_netcdf(self.outputfolder + 'single_multiple/bval_' + filename + '.nc')
-        self.spatial_std_err.to_netcdf(self.outputfolder + 'single_multiple/std_err_' + filename + '.nc')
+        self.spatial_regressions.to_netcdf(self.outputfolder + 'spatial/regr_' + filename + '.nc')
+        self.spatial_pvalue.to_netcdf(self.outputfolder + 'spatial/pval_' + filename + '.nc')
+        self.spatial_rvalue.to_netcdf(self.outputfolder + 'spatial/rval_' + filename + '.nc')
+        self.spatial_b.to_netcdf(self.outputfolder + 'spatial/bval_' + filename + '.nc')
+        self.spatial_std_err.to_netcdf(self.outputfolder + 'spatial/std_err_' + filename + '.nc')
 
         # Spatial regressions
-        self.multiple_regressions.to_netcdf(self.outputfolder + 'spatial/regr_' + filename + '.nc')
+        self.multiple_regressions.to_netcdf(self.outputfolder + 'single_multiple/regr_' + filename + '.nc')
         xarray = xr.Dataset({'cov' : self.multiple_covariances})
-        xarray.to_netcdf(self.outputfolder + 'spatial/cov_' + filename + '.nc')
+        xarray.to_netcdf(self.outputfolder + 'single_multiple/cov_' + filename + '.nc')
 
         # Spatial multiple regressions
         self.params.to_netcdf(self.outputfolder + 'spatial_multiple/regr_' + filename + '.nc')
