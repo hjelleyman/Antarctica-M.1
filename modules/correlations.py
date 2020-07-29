@@ -91,7 +91,7 @@ class correlator(object):
         temporal_resolution (str, optional): What temporal resolution to load.
     """
 
-    def __init__(self, process_seaice = True, process_indicies = True, indicies = ['SAM'], anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, outputfolder = 'processed_data/correlations/', input_folder = 'processed_data/'):
+    def __init__(self, process_seaice = True, process_indicies = True, indicies = ['SAM'], anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, outputfolder = 'processed_data/correlations/', input_folder = 'processed_data/', seaice_source = 'nsidc'):
         """
         Args:
             process_seaice (bool, optional): Decides if we should load seaice data.
@@ -113,6 +113,7 @@ class correlator(object):
         self.detrend             = detrend
         self.outputfolder        = outputfolder
         self.input_folder        = input_folder
+        self.seaice_source       = seaice_source
 
         self.load_data()
 
@@ -138,8 +139,12 @@ class correlator(object):
             dt = 'raw'
             
         seaicename = f'{temp_decomp}_{self.temporal_resolution}_{self.spatial_resolution}_{dt}'
-        self.seaice_data = xr.open_dataset(self.input_folder + 'SIC/' + seaicename +'.nc')
-        self.seaice_data = self.seaice_data[seaicename]
+        if self.seaice_source == 'nsidc':
+            self.seaice_data = xr.open_dataset(self.input_folder + 'SIC/' + seaicename +'.nc')
+            self.seaice_data = self.seaice_data[seaicename]
+        if self.seaice_source == 'ecmwf':
+            self.seaice_data = xr.open_dataset(self.input_folder + 'ERA5/' + seaicename +'.nc')
+            self.seaice_data = self.seaice_data[seaicename]
 
 
     def load_indicies(self):
@@ -172,7 +177,10 @@ class correlator(object):
             ind = self.index_data[index].copy()
 
             times = list(set(set(sic.time.values) & set(ind.time.values)))
-            sic = sic.sel(time=times).mean(dim=('x','y'))
+            if 'x' in sic.dims:
+                sic = sic.sel(time=times).mean(dim=('x','y'))
+            else:
+                sic = sic.sel(time=times).mean(dim=('longitude','latitude'))
             ind = ind.sel(time=times)
 
             sic = sic.sortby(sic.time)
@@ -199,15 +207,25 @@ class correlator(object):
 
             # dict_spatial_pvalue[index]       =    calculate_pvalue(sic, ind).compute().values
 
+            
+            if self.seaice_source == 'ecmwf':
+                sic = sic.stack(z=('latitude','longitude'))
+                sic = sic.dropna(dim = 'z', how='all')
+
             correlation = sic.mean(dim = 'time').copy()
             correlation.values = correlate_variables(sic, ind).compute().values
             correlation.name = index
-            self.spatial_correlations[index] = correlation
-
 
             pvalue = sic.mean(dim = 'time').copy()
             pvalue.values = calculate_pvalue(sic, ind).compute().values
             pvalue.name = index
+            
+            if self.seaice_source == 'ecmwf':
+                sic = sic.unstack()
+                correlation = correlation.unstack()
+                pvalue = pvalue.unstack()
+
+            self.spatial_correlations[index] = correlation
             self.spatial_pvalue[index] = pvalue
 
 

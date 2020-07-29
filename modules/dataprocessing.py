@@ -112,6 +112,9 @@ class dataprocessor(object):
         if self.load_ERA5:
             heading = f"Loading ECMWF ERA5 data"
             print_heading(heading)
+            self.era5_data = era5_data(rawdatafolder       = self.rawdatafolder,
+                                        processeddatafolder = self.processeddatafolder)
+            self.era5_data.load_data()
 
     def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
         """Summary
@@ -138,7 +141,10 @@ class dataprocessor(object):
         if self.load_indicies:
             self.index_data.decompose_and_save(temporal_resolution = temporal_resolution, temporal_decomposition = temporal_decomposition, detrend = detrend)
             
-    
+        if self.load_ERA5:
+            self.era5_data.decompose_and_save(resolutions = resolutions, temporal_resolution = temporal_resolution, temporal_decomposition = temporal_decomposition, detrend = detrend)
+                
+        
 
 
 class seaice_data:
@@ -482,7 +488,7 @@ class era5_data:
         Spatial resolution parameter.
     """
 
-    def __init__(self, rawdatafolder = 'data/', processeddatafolder = 'processeddata/', variables = ['SAM']):
+    def __init__(self, rawdatafolder = 'data/', processeddatafolder = 'processeddata/'):
         """Loads the raw data.
         
         Parameters
@@ -503,17 +509,81 @@ class era5_data:
         self.source_folder = rawdatafolder + 'ECMWF/'
         self.output_folder = processeddatafolder + 'ERA5/'
 
-        self.variables     = variables
 
-    def load_data():
+    def load_data(self):
         """Summary
         """
-        pass
+        self.data = xr.open_dataset('data/ERA5-SIC/download.nc')
+        self.data = self.data.sel(latitude=slice(0, -90)).siconc
     
-    def decompose_and_save():
-        """Summary
+    def decompose_and_save(self, resolutions = [1,5,10,20], temporal_resolution = ['monthly', 'seasonal', 'annual'], temporal_decomposition = ['raw', 'anomalous'], detrend = ['raw', 'detrended']):
+        """Break the data into different temporal splits.
+        
+        Parameters
+        ----------
+        resolutions : list, optional
+            Description
+        temporal_resolution : list, optional
+            Description
+        temporal_decomposition : list, optional
+            Description
+        detrend : list, optional
+            Description
         """
-        pass
+        dataset = xr.Dataset({'source':self.data.copy()})
+
+        dataset.to_netcdf(self.output_folder+'source.nc')
+
+        heading = 'Splitting the seaice data up'
+        print_heading(heading) 
+
+        for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
+            print(n, temp_res, temp_decomp, dt)
+            # Spatial resolution fix.
+            new_data = dataset.source.loc[:,::n,::n].copy()
+
+            # Temporal interpolation for missing data.
+            new_data = new_data.resample(time = '1MS').fillna(np.nan)
+            new_data = new_data.sortby(new_data.time)
+            new_data = new_data.groupby('time.month').apply(lambda group: group.sortby(group.time).interp(method='linear'))
+
+            if temp_res == 'seasonal':
+                new_data = new_data[:-1]
+
+            # If anomalous remove seasonal cycle
+            if temp_decomp == 'anomalous':
+                climatology = new_data.groupby("time.month").mean("time")
+                new_data = new_data.groupby("time.month") - climatology
+
+
+            # temporal averaging
+            if temp_res == 'seasonal':
+                new_data = new_data.resample(time="QS-DEC").mean()
+
+            elif temp_res == 'annual':
+                new_data = new_data.resample(time="YS").mean()
+            # plt.plot(new_data.mean(dim = ('x','y')))
+            # plt.show()
+
+            # dataset = xr.Dataset({'source':self.data.copy()})
+            # dataset[f'{temp_decomp}_{temp_res}_{n}'] = new_data
+
+
+            # Detrend
+            if 'detrended' == dt:
+                new_data = new_data.sortby(new_data.time)
+                new_data = new_data.stack(z=('latitude','longitude'))
+                new_data = new_data.dropna(dim = 'z', how='all')
+                new_data = detrend_data(new_data)
+                new_data = new_data.unstack()
+
+            new_data.name = f'{temp_decomp}_{temp_res}_{n}_{dt}'
+            new_data.to_netcdf(self.output_folder + new_data.name +'.nc')
+
+        # self.data = dataset
+                
+        print_heading('DONE')
+
 
 def detrend_data(t):
     """Summary
