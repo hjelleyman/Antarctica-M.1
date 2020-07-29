@@ -154,7 +154,7 @@ def plot_index_timeseries(anomlous = False, temporal_resolution = 'monthly', det
 
 ################## indicies and sic #####################
 
-def plot_all_indicies_sic(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def plot_all_indicies_sic(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'], seaice_source = 'nsidc'):
     """Plots all the index timeseries.
     
     Args:
@@ -166,9 +166,9 @@ def plot_all_indicies_sic(resolutions, temporal_resolution, temporal_decompositi
         indicies (list, optional): what indicies to load.
     """
     for n, temp_res, temp_decomp, dt, indexname in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend, indicies):
-        plot_index_sic_timeseries(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, detrend = dt == 'detrended', indexname = indexname, n = n)
+        plot_index_sic_timeseries(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, detrend = dt == 'detrended', indexname = indexname, n = n, seaice_source = seaice_source)
 
-def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly', detrend = False, imagefolder = 'images/timeseries/SIC_INDICIES', indexname = 'SAM', n = 5):
+def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly', detrend = False, imagefolder = 'images/timeseries/SIC_INDICIES', indexname = 'SAM', n = 5, seaice_source = 'nsidc'):
     """Plots an index time series.
     
     Args:
@@ -197,9 +197,14 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
     data = indicies.copy()
     data = data.loc[data.time.dt.year >= 1979]
     seaicename = f'{temp_decomp}_{temporal_resolution}_{n}_{dt}'
-    seaice = xr.open_dataset(output_folder + 'SIC/' + seaicename +'.nc')
 
-    seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].mean(dim = ('x', 'y')))
+    seaice = xr.open_dataset(output_folder + 'SIC/' + seaicename +'.nc')
+    if seaice_source == 'ecmwf':
+        seaice = xr.open_dataset(output_folder + 'ERA5/' + seaicename +'.nc')
+    if seaice_source == 'ecmwf':
+        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].mean(dim = ('longitude', 'latitude')))
+    if seaice_source == 'nsidc':
+        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].mean(dim = ('x', 'y')))
     data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
 
     title = temp_decomp.capitalize() + ' '
@@ -217,7 +222,10 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
 
     ln1 = ax.plot(data.time, data, label = f'{indexname}', color = '#EA1B10')
     ax.plot(data.time, data_m * data.time.values.astype(float) + data_b, color = '#EA1B10')
-    ln2 = ax2.plot(seaice.time, seaice[seaicename].mean(dim = ('x', 'y')), label = 'SIC', color = '#177E89')
+    if seaice_source == 'ecmwf':
+        ln2 = ax2.plot(seaice.time, seaice[seaicename].mean(dim = ('longitude', 'latitude')), label = 'SIC', color = '#177E89')
+    if seaice_source == 'nsidc':
+        ln2 = ax2.plot(seaice.time, seaice[seaicename].mean(dim = ('x', 'y')), label = 'SIC', color = '#177E89')
     ax2.plot(seaice.time, seaice_m * seaice.time.values.astype(float) + seaice_b, color = '#177E89')
 
     yabs_max = abs(max(ax.get_ylim(), key=abs))
@@ -236,7 +244,7 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
     plt.legend(lines,labels,bbox_to_anchor=(0.99, -0.15), ncol = 2, loc = 'upper right')
 
     plt.title(title)
-    plt.savefig(imagefolder + f'/SIC_{indexname}_{filename}' + '.pdf')
+    plt.savefig(imagefolder + f'/SIC_{indexname}_{filename}_{seaice_source}' + '.pdf')
     plt.show()
 
 
@@ -333,7 +341,7 @@ def plot_sic_sic_timeseries(anomlous = False, temporal_resolution = 'monthly', s
 
 ############ Single Correlations ###############
 
-def plot_single_correlations(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def plot_single_correlations(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'], seaice_source = 'nsidc'):
     """Plots all the index timeseries.
     
     Args:
@@ -345,9 +353,9 @@ def plot_single_correlations(resolutions, temporal_resolution, temporal_decompos
         indicies (list, optional): what indicies to load.
     """
     for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
-        plot_single_correlation(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+        plot_single_correlation(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1, seaice_source = seaice_source)
 
-def plot_single_correlation(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/single/', n = 5):
+def plot_single_correlation(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/single/', n = 5, seaice_source = 'nsidc'):
     """Summary
     
     Args:
@@ -357,13 +365,20 @@ def plot_single_correlation(anomlous = False, temporal_resolution = 'monthly', d
         imagefolder (str, optional): Description
         n (int, optional): Description
     """
-    filename = f'processed_data/correlations/single/corr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
+    if seaice_source == 'ecmwf':
+        filename = f'processed_data/ERA5/correlations/single/corr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
+    else:
+        filename = f'processed_data/correlations/single/corr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
 
     dataset = xr.open_dataset(filename + '.nc')
     indicies = np.array([i for i in dataset])
     values   = np.array([dataset[i].values for i in dataset])
 
-    p_dataset = xr.open_dataset(f'processed_data/correlations/single/pval_{temp_decomp}_{temporal_resolution}_{detrend}_{n}.nc')
+    if seaice_source == 'ecmwf':
+        p_dataset = xr.open_dataset(f'processed_data/ERA5/correlations/single/pval_{temp_decomp}_{temporal_resolution}_{detrend}_{n}.nc')
+    else:
+        p_dataset = xr.open_dataset(f'processed_data/correlations/single/pval_{temp_decomp}_{temporal_resolution}_{detrend}_{n}.nc')
+    
     p_values   = np.array([p_dataset[i].values for i in p_dataset])
 
     title = temp_decomp.capitalize() + ' '
@@ -390,11 +405,11 @@ def plot_single_correlation(anomlous = False, temporal_resolution = 'monthly', d
     plt.title(title)
     # plt.legend(bbox_to_anchor=(0.99, -0.15), ncol = 2, loc = 'upper right')
     plt.ylim([-1,1])
-    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
     plt.show()
 
 
-def gen_single_correlation_table(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def gen_single_correlation_table(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'], seaice_source = 'nsidc'):
     n = 1
     correlations = pd.DataFrame(columns = indicies)
     pvalues = pd.DataFrame(columns = indicies)
@@ -419,8 +434,8 @@ def gen_single_correlation_table(resolutions, temporal_resolution, temporal_deco
         values   = np.array([dataset[i].values for i in dataset])
 
         pvalues.loc[index_name,indicies] = values
-    correlations.to_csv('images/correlations/single/correlations.csv')
-    pvalues.to_csv('images/correlations/single/pvalues.csv')
+    correlations.to_csv(f'images/correlations/single/correlations_{seaice_source}.csv')
+    pvalues.to_csv(f'images/correlations/single/pvalues_{seaice_source}.csv')
     return correlations, pvalues
 
 
