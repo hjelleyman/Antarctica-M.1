@@ -951,7 +951,7 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
         
     newdata = {}
     for indexname in indicies[:-1]:
-        newdata[indexname] = (index_data[indexname] *dataset[indexname]).mean(dim = 'time')
+        newdata[indexname] = (scipy.stats.linregress(index_data[indexname].time.values.astype(float), index_data[indexname])[0] *dataset[indexname])
 
     title = temp_decomp.capitalize() + ' '
     if detrend == 'detrended':
