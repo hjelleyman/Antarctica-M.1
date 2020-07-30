@@ -85,7 +85,7 @@ def plot_seaice_timeseries(anomlous = False, temporal_resolution = 'monthly', sp
         plt.plot(seaice.time, seaice[seaicename].mean(dim = ('longitude', 'latitude')))
     plt.plot(seaice.time, seaice_m * seaice.time.values.astype(float) + seaice_b, color = '#177E89')
     plt.title(title)
-    plt.savefig(imagefolder + seaicename+'.pdf')
+    plt.savefig(imagefolder + seaicename+f'_{seaice_source}.pdf')
     plt.show()
 
 ################## indicies #####################
@@ -498,7 +498,7 @@ def plot_spatial_correlation(anomlous = False, temporal_resolution = 'monthly', 
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
     cbar.set_label('Correlation')
-    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
     plt.show()
 
 
@@ -561,7 +561,7 @@ def plot_spatial_correlation_with_significance(anomlous = False, temporal_resolu
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
     cbar.set_label('Correlation')
-    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
     plt.show()
 
 
