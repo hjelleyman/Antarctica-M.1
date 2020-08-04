@@ -2,6 +2,41 @@
 """
 import xarray as xr
 import scipy
+from numba import njit,jit
+import numpy as np
+
+from modules.misc import seaice_area_mean
+
+@njit
+def fastlinregress(ind, sic, shape):
+    if sic.ndim == 1:
+        mean_ind = np.mean(ind)
+        mean_sic = np.mean(sic)
+        numerator = 0.0
+        denominator = 0.0
+        for n in range(shape[0]):
+            numerator = numerator + (ind[n]-mean_ind) * (sic[n] - mean_sic)
+            denominator = denominator + (ind[n]-mean_ind)**2
+        slope = numerator / denominator
+        b = mean_sic - slope * mean_ind
+    if sic.ndim == 3:
+        slope = np.empty(sic.shape[1:])
+        b = np.empty(sic.shape[1:])
+
+        mean_ind = np.mean(ind)
+        denominator = 0.0
+
+        for n in range(shape[0]):
+            denominator = denominator + (ind[n]-mean_ind)**2
+        for i in range(shape[1]):
+            for j in range(shape[2]):
+                mean_sic = np.mean(sic[:,i,j])
+                numerator = 0.0
+                for n in range(shape[0]):
+                    numerator = numerator + (ind[n]-mean_ind) * (sic[n,i,j] - mean_sic)
+                slope[i,j] = numerator / denominator
+                b[i,j] = mean_sic - slope[i,j] * mean_ind
+    return slope, b
 
 
 def linear_model(x, a, b, c, d, e):
@@ -38,7 +73,7 @@ class regressor(object):
         spatial_resolution (TYPE): Description
         temporal_resolution (TYPE): Description
     """
-    def __init__(self, process_seaice = True, process_indicies = True, indicies = ['SAM'], anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, outputfolder = 'processed_data/correlations/', input_folder = 'processed_data/'):
+    def __init__(self, process_seaice = True, process_indicies = True, indicies = ['SAM'], anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, outputfolder = 'processed_data/correlations/', input_folder = 'processed_data/', seaice_source='nsidc'):
         """
         Args:
             process_seaice (bool, optional): Decides if we should load seaice data.
@@ -60,6 +95,10 @@ class regressor(object):
         self.detrend             = detrend
         self.outputfolder        = outputfolder
         self.input_folder        = input_folder
+        self.seaice_source       = seaice_source
+
+        if self.seaice_source == 'ecmwf':
+            self.outputfolder = 'processed_data/ERA5/regressions/'
 
         self.load_data()
         self.normalise_data()
@@ -100,8 +139,12 @@ class regressor(object):
             dt = 'raw'
             
         seaicename = f'{temp_decomp}_{self.temporal_resolution}_{self.spatial_resolution}_{dt}'
-        self.seaice_data = xr.open_dataset(self.input_folder + 'SIC/' + seaicename +'.nc')
-        self.seaice_data = self.seaice_data[seaicename]
+        if self.seaice_source == 'nsidc':
+            self.seaice_data = xr.open_dataset(self.input_folder + 'SIC/' + seaicename +'.nc')
+            self.seaice_data = self.seaice_data[seaicename]
+        if self.seaice_source == 'ecmwf':
+            self.seaice_data = xr.open_dataset(self.input_folder + 'ERA5/SIC/' + seaicename +'.nc')
+            self.seaice_data = self.seaice_data[seaicename]
 
 
     def load_indicies(self):
@@ -137,18 +180,22 @@ class regressor(object):
             ind = self.index_data[index].copy()
 
             times = list(set(set(sic.time.values) & set(ind.time.values)))
-            sic = sic.sel(time=times).mean(dim=('x','y'))
+            sic = sic.sel(time=times)
+            if self.seaice_source == 'nsidc':
+                sic = seaice_area_mean(sic,1)
+            if self.seaice_source == 'ecmwf':
+                sic = sic.mean(dim = ('longitude','latitude'))
             ind = ind.sel(time=times)
 
             sic = sic.sortby(sic.time)
             ind = ind.sortby(ind.time)
 
-            m, b, r_value, p_value, std_err = scipy.stats.linregress(ind, sic)
+            m, b = fastlinregress(ind.values, sic.values, sic.values.shape)
             self.mean_regressions[index] = m
-            self.mean_pvalue[index]      = p_value
-            self.mean_rvalue[index]      = r_value
+            # self.mean_pvalue[index]      = p_value
+            # self.mean_rvalue[index]      = r_value
             self.mean_b[index]           = b
-            self.mean_std_err[index]     = std_err
+            # self.mean_std_err[index]     = std_err
 
     def regress_spatial_sic_indicies(self):
 
@@ -169,38 +216,34 @@ class regressor(object):
             sic = sic.sortby(sic.time)
             ind = ind.sortby(ind.time)
 
-            m, b, r_value, p_value, std_err = xr.apply_ufunc(scipy.stats.linregress, ind, sic,
-                                                              input_core_dims=[['time'], ['time']],
-                                                              vectorize=True, # !Important!
-                                                              dask='parallelized',
-                                                              output_dtypes=[float]*5,
-                                                              output_core_dims=[[]]*5
-                                                              )
+            sic = sic.transpose("time",...)
+
+            m, b = fastlinregress(ind.values, sic.values, sic.values.shape)
 
             regression = sic.mean(dim = 'time').copy()
             regression.values = m
             regression.name = index
             self.spatial_regressions[index] = regression
 
-            pval = sic.mean(dim = 'time').copy()
-            pval.values = p_value
-            pval.name = index
-            self.spatial_pvalue[index] = pval
+            # pval = sic.mean(dim = 'time').copy()
+            # pval.values = p_value
+            # pval.name = index
+            # self.spatial_pvalue[index] = pval
 
-            rvalue = sic.mean(dim = 'time').copy()
-            rvalue.values = r_value
-            rvalue.name = index
-            self.spatial_rvalue[index] = rvalue
+            # rvalue = sic.mean(dim = 'time').copy()
+            # rvalue.values = r_value
+            # rvalue.name = index
+            # self.spatial_rvalue[index] = rvalue
 
             bval = sic.mean(dim = 'time').copy()
             bval.values = b
             bval.name = index
             self.spatial_b[index] = bval
 
-            stderr = sic.mean(dim = 'time').copy()
-            stderr.values = std_err
-            stderr.name = index
-            self.spatial_std_err[index] = stderr
+            # stderr = sic.mean(dim = 'time').copy()
+            # stderr.values = std_err
+            # stderr.name = index
+            # self.spatial_std_err[index] = stderr
 
     def multiple_regression(self):
 
@@ -209,7 +252,11 @@ class regressor(object):
 
         times = list(set.intersection(set(sic.time.values), *(set(indicies[i].time.values)for i in range(len(indicies)))))
 
-        sic = sic.sel(time=times).sortby('time').mean(dim=('x','y'))
+        sic = sic.sel(time=times).sortby('time')
+        if self.seaice_source == 'nsidc':
+                sic = seaice_area_mean(sic,1)
+        if self.seaice_source == 'ecmwf':
+            sic = sic.mean(dim = ('longitude','latitude'))
         indicies = [ind.sel(time=times).sortby('time') for ind in indicies]
 
         p0 = [0]*5
@@ -230,6 +277,9 @@ class regressor(object):
         times = list(set.intersection(set(sic.time.values), *(set(indicies[i].time.values)for i in range(len(indicies)))))
 
         sic = sic.sel(time=times).sortby('time')
+        if self.seaice_source == 'ecmwf':
+            sic = sic.stack(z=('latitude','longitude'))
+            sic = sic.dropna(dim = 'z', how='all')
         indicies = [ind.sel(time=times).sortby('time') for ind in indicies]
 
         new_indicies = xr.Dataset({v.name:v for v in indicies}).to_array(dim='variable')
@@ -258,6 +308,10 @@ class regressor(object):
                                      output_dtypes=[float]*5,
                                      output_core_dims=[[]]*5
                                      )
+
+        if self.seaice_source == 'ecmwf':
+            sic = sic.unstack()
+            params = [p.unstack() for p in params]
         multiple_regressions = {self.indicies[i]:params[i] for i in range(len(params)-1)}
         multiple_regressions['error'] = params[-1]
 

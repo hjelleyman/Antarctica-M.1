@@ -3,6 +3,7 @@
 import scipy
 import xarray as xr
 import matplotlib.pyplot as plt
+from modules.misc import seaice_area_mean
 
 ################################################
 #               Helper Functions               #
@@ -115,6 +116,9 @@ class correlator(object):
         self.input_folder        = input_folder
         self.seaice_source       = seaice_source
 
+        if self.seaice_source == 'ecmwf':
+            self.outputfolder = 'processed_data/ERA5/correlations/'
+
         self.load_data()
 
     def load_data(self):
@@ -143,7 +147,7 @@ class correlator(object):
             self.seaice_data = xr.open_dataset(self.input_folder + 'SIC/' + seaicename +'.nc')
             self.seaice_data = self.seaice_data[seaicename]
         if self.seaice_source == 'ecmwf':
-            self.seaice_data = xr.open_dataset(self.input_folder + 'ERA5/' + seaicename +'.nc')
+            self.seaice_data = xr.open_dataset(self.input_folder + 'ERA5/SIC/' + seaicename +'.nc')
             self.seaice_data = self.seaice_data[seaicename]
 
 
@@ -178,7 +182,8 @@ class correlator(object):
 
             times = list(set(set(sic.time.values) & set(ind.time.values)))
             if 'x' in sic.dims:
-                sic = sic.sel(time=times).mean(dim=('x','y'))
+                sic = sic.sel(time=times)
+                sic = seaice_area_mean(sic,1)
             else:
                 sic = sic.sel(time=times).mean(dim=('longitude','latitude'))
             ind = ind.sel(time=times)

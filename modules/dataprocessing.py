@@ -507,7 +507,7 @@ class era5_data:
         """
 
         self.source_folder = rawdatafolder + 'ECMWF/'
-        self.output_folder = processeddatafolder + 'ERA5/'
+        self.output_folder = processeddatafolder + 'ERA5/SIC/'
 
 
     def load_data(self):

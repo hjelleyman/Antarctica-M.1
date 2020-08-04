@@ -49,7 +49,7 @@ def plot_seaice_timeseries(anomlous = False, temporal_resolution = 'monthly', sp
     """
     output_folder = 'processed_data/SIC/'
     if seaice_source == 'ecmwf':
-        output_folder = 'processed_data/ERA5/'
+        output_folder = 'processed_data/ERA5/SIC/'
 
     if anomlous:
         temp_decomp = 'anomalous'
@@ -73,17 +73,21 @@ def plot_seaice_timeseries(anomlous = False, temporal_resolution = 'monthly', sp
     seaice = xr.open_dataset(output_folder + seaicename +'.nc')
 
     if seaice_source == 'nsidc':
-        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].mean(dim = ('x', 'y')))
+        seaice = seaice/1000
+        seaice.loc[seaice < 0.15/1000] = np.nan
+        mean_seaice = seaice_area_mean(seaice[seaicename],1)
+        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(mean_seaice.time.values.astype(float), mean_seaice)
     if seaice_source =='ecmwf':
-        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].mean(dim = ('longitude', 'latitude')))
+        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].sum(dim = ('longitude', 'latitude')))
     ax = plt.gca()
     if anomlous or detrend: ax.axhline(0, alpha = 0.5)
     if seaice_source == 'nsidc':
-        plt.plot(seaice.time, seaice[seaicename].mean(dim = ('x', 'y')))
+        mean_seaice = seaice_area_mean(seaice[seaicename],1)
+        plt.plot(seaice.time, mean_seaice)
 
     if seaice_source == 'ecmwf':
         plt.plot(seaice.time, seaice[seaicename].mean(dim = ('longitude', 'latitude')))
-    plt.plot(seaice.time, seaice_m * seaice.time.values.astype(float) + seaice_b, color = '#177E89')
+    plt.plot(seaice.time, (seaice_m * seaice.time.values.astype(float) + seaice_b), color = '#177E89')
     plt.title(title)
     plt.savefig(imagefolder + seaicename+f'_{seaice_source}.pdf')
     plt.show()
@@ -200,11 +204,12 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
 
     seaice = xr.open_dataset(output_folder + 'SIC/' + seaicename +'.nc')
     if seaice_source == 'ecmwf':
-        seaice = xr.open_dataset(output_folder + 'ERA5/' + seaicename +'.nc')
+        seaice = xr.open_dataset(output_folder + 'ERA5/SIC/' + seaicename +'.nc')
     if seaice_source == 'ecmwf':
         seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].mean(dim = ('longitude', 'latitude')))
     if seaice_source == 'nsidc':
-        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename].mean(dim = ('x', 'y')))
+        mean_seaice = seaice_area_mean(seaice[seaicename],1)
+        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(mean_seaice.time.values.astype(float), mean_seaice)
     data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
 
     title = temp_decomp.capitalize() + ' '
@@ -225,7 +230,7 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
     if seaice_source == 'ecmwf':
         ln2 = ax2.plot(seaice.time, seaice[seaicename].mean(dim = ('longitude', 'latitude')), label = 'SIC', color = '#177E89')
     if seaice_source == 'nsidc':
-        ln2 = ax2.plot(seaice.time, seaice[seaicename].mean(dim = ('x', 'y')), label = 'SIC', color = '#177E89')
+        ln2 = ax2.plot(mean_seaice.time, mean_seaice, label = 'SIC', color = '#177E89')
     ax2.plot(seaice.time, seaice_m * seaice.time.values.astype(float) + seaice_b, color = '#177E89')
 
     yabs_max = abs(max(ax.get_ylim(), key=abs))
@@ -289,12 +294,14 @@ def plot_sic_sic_timeseries(anomlous = False, temporal_resolution = 'monthly', s
         dt = 'raw'
 
     filename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
-    indicies = xr.open_dataset(output_folder + 'ERA5/' + filename +'.nc')[filename].mean(dim = ('longitude', 'latitude'))
+    indicies = xr.open_dataset(output_folder + 'ERA5/SIC/' + filename +'.nc')[filename].mean(dim = ('longitude', 'latitude'))
     data = indicies.copy()
     data = data.loc[data.time.dt.year >= 1979]
     seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
-    seaice = xr.open_dataset(output_folder + 'SIC/' + seaicename +'.nc')[seaicename].mean(dim = ('x', 'y'))
+    seaice = xr.open_dataset(output_folder + 'SIC/' + seaicename +'.nc')[seaicename]
 
+
+    seaice = seaice_area_mean(seaice,1)
     seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice.time.values.astype(float), seaice)
     data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
 
@@ -571,7 +578,7 @@ def plot_spatial_correlation_with_significance(anomlous = False, temporal_resolu
 
 ############ Single Regressions ################
 
-def plot_all_regression_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def plot_all_regression_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'],seaice_source='nsidc'):
     """Plots all the index timeseries.
     
     Args:
@@ -583,9 +590,9 @@ def plot_all_regression_scatter(resolutions, temporal_resolution, temporal_decom
         indicies (list, optional): what indicies to load.
     """
     for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
-        plot_regression_scatter(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+        plot_regression_scatter(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1,seaice_source=seaice_source)
 
-def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5,seaice_source='nsidc'):
     """Summary
     
     Args:
