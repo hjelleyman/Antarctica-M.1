@@ -74,7 +74,6 @@ def plot_seaice_timeseries(anomlous = False, temporal_resolution = 'monthly', sp
 
     if seaice_source == 'nsidc':
         seaice = seaice/1000
-        seaice.loc[seaice < 0.15/1000] = np.nan
         mean_seaice = seaice_area_mean(seaice[seaicename],1)
         seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(mean_seaice.time.values.astype(float), mean_seaice)
     if seaice_source =='ecmwf':
@@ -578,7 +577,7 @@ def plot_spatial_correlation_with_significance(anomlous = False, temporal_resolu
 
 ############ Single Regressions ################
 
-def plot_all_regression_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'],seaice_source='nsidc'):
+def plot_all_regression_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/regressions/single/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'],seaice_source='nsidc'):
     """Plots all the index timeseries.
     
     Args:
@@ -590,9 +589,9 @@ def plot_all_regression_scatter(resolutions, temporal_resolution, temporal_decom
         indicies (list, optional): what indicies to load.
     """
     for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
-        plot_regression_scatter(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1,seaice_source=seaice_source)
+        plot_regression_scatter(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/regressions/single/', n = 1,seaice_source=seaice_source)
 
-def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5,seaice_source='nsidc'):
+def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/regressions/single/', n = 5,seaice_source='nsidc'):
     """Summary
     
     Args:
@@ -635,15 +634,15 @@ def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', d
 
     times = list(set.intersection(set(seaice_data.time.values), *(set(index_data[i].time.values)for i in range(len(indicies)))))
 
-    seaice_data = seaice_data.sel(time=times).sortby('time').mean(dim=('x','y'))
+    seaice_data = seaice_area_mean(seaice_data.sel(time=times).sortby('time'), 1)
     index_data = [ind.sel(time=times).sortby('time') for ind in index_data]
 
     for ind in index_data:
         ind = (ind - ind.mean()) 
         ind =  ind / ind.std()
 
-    seaice_data = (seaice_data - seaice_data.mean()) 
-    seaice_data =  seaice_data / seaice_data.std()
+    # seaice_data = (seaice_data - seaice_data.mean()) 
+    # seaice_data =  seaice_data / seaice_data.std()
     # Plotting
     for i in range(len(indicies)):
         xlength  = 1.25 * max(-min(index_data[i]),max(index_data[i]))
@@ -658,6 +657,7 @@ def plot_regression_scatter(anomlous = False, temporal_resolution = 'monthly', d
         yfit = values[i] * np.array([-xlength,xlength]) + b_values[i]
         ax[i].plot(np.array([-xlength,xlength]), yfit, color = 'black')
     fig.suptitle(title)
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
     plt.show()
 
 def gen_single_regression_table(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
@@ -717,7 +717,7 @@ def gen_single_regression_table(resolutions, temporal_resolution, temporal_decom
 
 ############ Single Spatial Regressions ################
 
-def plot_all_regression_spatial(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def plot_all_regression_spatial(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/regressions/spatial/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
     """Plots all the index timeseries.
     
     Args:
@@ -729,9 +729,9 @@ def plot_all_regression_spatial(resolutions, temporal_resolution, temporal_decom
         indicies (list, optional): what indicies to load.
     """
     for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
-        plot_regression_spatial(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+        plot_regression_spatial(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/regressions/spatial/', n = 1)
 
-def plot_regression_spatial(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+def plot_regression_spatial(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/regressions/spatial/', n = 5):
     """Summary
     
     Args:
@@ -744,6 +744,8 @@ def plot_regression_spatial(anomlous = False, temporal_resolution = 'monthly', d
     filename = f'processed_data/regressions/spatial/regr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
 
     dataset = xr.open_dataset(filename + '.nc')
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    dataset = dataset*area
     indicies = np.array([i for i in dataset])
     values   = np.array([dataset[i].values for i in dataset])
 
@@ -755,7 +757,7 @@ def plot_regression_spatial(anomlous = False, temporal_resolution = 'monthly', d
     title += f' SIC regressed against'
 
     max_ = max([max(value.max(),-value.min()) for value in  values])
-    max_ = 2
+    # max_ = 2
     divnorm = TwoSlopeNorm(vmin=-max_, vcenter=0, vmax=max_)
     fig, ax = plt.subplots(2,2,subplot_kw={'projection': ccrs.SouthPolarStereo()}, figsize = (5,5))
     ax = ax.flatten()
@@ -771,13 +773,14 @@ def plot_regression_spatial(anomlous = False, temporal_resolution = 'monthly', d
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
     cbar.set_label('Correlation')
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
     plt.show()
 
 
 ############ Multiple Regressions ################
 
 
-def plot_all_regression_multiple_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def plot_all_regression_multiple_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/regressions/single_multiple/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
     """Plots all the index timeseries.
     
     Args:
@@ -789,9 +792,9 @@ def plot_all_regression_multiple_scatter(resolutions, temporal_resolution, tempo
         indicies (list, optional): what indicies to load.
     """
     for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
-        plot_regression_multiple_scatter(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+        plot_regression_multiple_scatter(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/regressions/single_multiple/', n = 1)
 
-def plot_regression_multiple_scatter(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+def plot_regression_multiple_scatter(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/regressions/single_multiple/', n = 5):
     """Summary
     
     Args:
@@ -834,15 +837,15 @@ def plot_regression_multiple_scatter(anomlous = False, temporal_resolution = 'mo
 
     times = list(set.intersection(set(seaice_data.time.values), *(set(index_data[i].time.values)for i in range(len(indicies)))))
 
-    seaice_data = seaice_data.sel(time=times).sortby('time').mean(dim=('x','y'))
+    seaice_data = seaice_area_mean(seaice_data.sel(time=times).sortby('time'), 1)
     index_data = [ind.sel(time=times).sortby('time') for ind in index_data]
 
     for ind in index_data:
         ind = (ind - ind.mean()) 
         ind =  ind / ind.std()
 
-    seaice_data = (seaice_data - seaice_data.mean()) 
-    seaice_data =  seaice_data / seaice_data.std()
+    # seaice_data = (seaice_data - seaice_data.mean()) 
+    # seaice_data =  seaice_data / seaice_data.std()
     # Plotting
     for i in range(len(indicies)):
         xlength  = 1.25 * max(-min(index_data[i]),max(index_data[i]))
@@ -857,11 +860,12 @@ def plot_regression_multiple_scatter(anomlous = False, temporal_resolution = 'mo
         yfit = values[i] * np.array([-xlength,xlength]) + b_values[i]
         ax[i].plot(np.array([-xlength,xlength]), yfit, color = 'black')
     fig.suptitle(title)
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
     plt.show()
 
 ############ Multiple Spatial Regressions ################
 
-def plot_all_regression_multiple_spatial(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def plot_all_regression_multiple_spatial(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/regressions/spatial_multiple/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
     """Plots all the index timeseries.
     
     Args:
@@ -873,9 +877,9 @@ def plot_all_regression_multiple_spatial(resolutions, temporal_resolution, tempo
         indicies (list, optional): what indicies to load.
     """
     for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
-        plot_regression_multiple_spatial(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+        plot_regression_multiple_spatial(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/regressions/spatial_multiple/', n = 1)
 
-def plot_regression_multiple_spatial(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+def plot_regression_multiple_spatial(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/regressions/spatial_multiple/', n = 5):
     """Summary
     
     Args:
@@ -915,6 +919,7 @@ def plot_regression_multiple_spatial(anomlous = False, temporal_resolution = 'mo
     cbar_ax = fig.add_axes([0.91, 0.15, 0.02, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
     cbar.set_label('Regression coefficients')
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
     plt.show()
 
 ############ Multiple Spatial Contribution Regressions ################

@@ -100,6 +100,7 @@ class dataprocessor(object):
             self.seaice_data = seaice_data(rawdatafolder       = self.rawdatafolder,
                                            processeddatafolder = self.processeddatafolder)
             self.seaice_data.load_data()
+            self.seaice_data.data = self.seaice_data.data.where(self.seaice_data.data > 0.15*250, other = 0.0)
 
         if self.load_indicies:
             heading = f"Loading index data"
