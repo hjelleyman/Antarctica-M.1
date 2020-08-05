@@ -773,7 +773,7 @@ def plot_regression_spatial(anomlous = False, temporal_resolution = 'monthly', d
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
     cbar.set_label('Correlation')
-    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
     plt.show()
 
 
@@ -811,6 +811,8 @@ def plot_regression_multiple_scatter(anomlous = False, temporal_resolution = 'mo
     seaicename = f'{temp_decomp}_{temporal_resolution}_{n}_{detrend}'
     seaice_data = xr.open_dataset('processed_data/SIC/' + seaicename +'.nc')
     seaice_data = seaice_data[seaicename]
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    seaice_data = seaice_data * area
 
     dataset = xr.open_dataset(filename + '.nc')
     indicies = np.array([i for i in dataset])
@@ -895,6 +897,9 @@ def plot_regression_multiple_spatial(anomlous = False, temporal_resolution = 'mo
     indicies = np.array([i for i in dataset])
     values   = np.array([dataset[i].values for i in dataset])
 
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    dataset = dataset * area
+
     title = temp_decomp.capitalize() + ' '
     if detrend == 'detrended':
         title += detrend + ' '
@@ -919,7 +924,7 @@ def plot_regression_multiple_spatial(anomlous = False, temporal_resolution = 'mo
     cbar_ax = fig.add_axes([0.91, 0.15, 0.02, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
     cbar.set_label('Regression coefficients')
-    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}' + '.pdf')
+    plt.savefig(imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}' + '.pdf')
     plt.show()
 
 ############ Multiple Spatial Contribution Regressions ################
@@ -954,6 +959,10 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
     indicies = np.array([i for i in dataset])
     values   = np.array([dataset[i].values for i in dataset])
 
+
+    # area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    # dataset = dataset * area
+
     index_data = {}
     for indexname in indicies[:-1]:
         filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{detrend}'
@@ -961,9 +970,9 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
         index_data[indexname] = (index_data[indexname] - index_data[indexname].mean()) 
         index_data[indexname] =  index_data[indexname] / index_data[indexname].std()
         
-    newdata = {}
+    newdata = {}                                   
     for indexname in indicies[:-1]:
-        newdata[indexname] = (scipy.stats.linregress(index_data[indexname].time.values.astype(float), index_data[indexname])[0] *dataset[indexname])
+        newdata[indexname] = (scipy.stats.linregress(index_data[indexname].time.values.astype(float), index_data[indexname])[0] *dataset[indexname]) * 24*60*60*365e9
 
     title = temp_decomp.capitalize() + ' '
     if detrend == 'detrended':
@@ -971,7 +980,7 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
 
     title += temporal_resolution
     title += f' SIC regressed against indicies'
-
+                   
     max_ = max([max(newdata[indexname].max(),-newdata[indexname].min()) for indexname in indicies[:-1]])
     # max_ = 1
     divnorm = TwoSlopeNorm(vmin=-max_, vcenter=0, vmax=max_)
