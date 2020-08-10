@@ -1096,7 +1096,7 @@ def plot_all_subplot_trends(resolutions, temporal_resolution, temporal_decomposi
         imagefolder (str, optional): Folder to save output images to.
     """
     for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
-        plot_seaice_trend(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended',seaice_source=seaice_source)
+        plot_subplot_trend(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended',seaice_source=seaice_source)
 
 def plot_subplot_trend(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/timeseries/SIC/',seaice_source='nsidc'):
     """Plots a timeseries for Antarctic SIC.
@@ -1130,31 +1130,80 @@ def plot_subplot_trend(anomlous = False, temporal_resolution = 'monthly', spatia
     title += ' SIE trends'
 
 
+#    Loading Seaice Trends
     seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
     seaice = xr.open_dataset(output_folder + seaicename +'.nc')
-
     if seaice_source == 'nsidc':
         seaice = seaice/250
         seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = xr.apply_ufunc(scipy.stats.linregress, seaice[seaicename].time.values.astype(float), seaice[seaicename], input_core_dims=[['time'],['time']], vectorize=True, dask='parallelized', output_dtypes=[float]*5, output_core_dims=[[]]*5)
     if seaice_source =='ecmwf':
         seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename])
-    
     seaice_m = seaice_m * 1e9 * 60 * 60 * 24 * 365
     area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
     seaice_m = seaice_m*area
     seaice_m = seaice_m.where(seaice_m != 0)
-    # seaice_m = seaice_m.where(seaice_p_value <= 0.05)
-    max_ = max(seaice_m.max(),-seaice_m.min())
+    seaice_m = seaice_m.where(seaice_p_value <= 0.05)
+
+
+#    Index xontributions
+    filename = f'processed_data/regressions/spatial_multiple/regr_{temp_decomp}_{temporal_resolution}_{dt}_{spatial_resolution}'
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+    index_data = {}
+    for indexname in indicies[:-1]:
+        filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{dt}'
+        index_data[indexname] = xr.open_dataset('processed_data/INDICIES/' + filename +'.nc')[indexname]
+        index_data[indexname] = (index_data[indexname] - index_data[indexname].mean()) 
+        index_data[indexname] =  index_data[indexname] / index_data[indexname].std()
+    newdata = {} 
+    for indexname in indicies[:-1]:
+        a = scipy.stats.linregress(index_data[indexname].time.values.astype(float), index_data[indexname])
+        newdata[indexname] = a[0] * dataset[indexname] * 24*60*60*365e9
+    title = temp_decomp.capitalize() + ' '
+    if detrend == 'detrended':
+        title += detrend + ' '
+    title += temporal_resolution
+    title += f' SIC trend contributions'
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    # Plotting
+    for i in range(len(indicies)-1):
+        indexname = indicies[i]
+        newdata[indexname] = newdata[indexname] * area / 250
+        newdata[indexname] = newdata[indexname].where(newdata[indexname] !=0)
+
+
+
+    fig = plt.figure(figsize = (15,5))
+
+    max_ = min(seaice_m.max(),-seaice_m.min())
     # max_ = 1
     divnorm = TwoSlopeNorm(vmin=-max_, vcenter=0, vmax=max_)
-    fig = plt.figure(projection = ccrs.SouthPolarStereo(), figsize = (5,5))
-    ax = fig.add_subplot(111)
-
+    ax = fig.add_subplot(131, projection = ccrs.SouthPolarStereo())
     # Plotting
     contor = ax.contourf(seaice_m.x, seaice_m.y, seaice_m, cmap = 'RdBu', levels = 100, norm = divnorm, transform=ccrs.SouthPolarStereo())
     ax.coastlines()
     ax.set_axis_off()
-    cbar = plt.colorbar(contor)
-    cbar.set_label('Trend in SIE (km$^2$ yr$^{-1}$)')
-    plt.title(title)
+    # cbar = plt.colorbar(contor)
+    # cbar.set_label('Trend in SIE (km$^2$ yr$^{-1}$)')
+    # plt.title(title)
+    ax = [fig.add_subplot(2,6,3, projection = ccrs.SouthPolarStereo()),fig.add_subplot(2,6,4, projection = ccrs.SouthPolarStereo()),fig.add_subplot(2,6,9, projection = ccrs.SouthPolarStereo()),fig.add_subplot(2,6,10, projection = ccrs.SouthPolarStereo())]
+    for i in range(len(indicies)-1):
+        indexname = indicies[i]
+        contor = ax[i].contourf(dataset.x, dataset.y, newdata[indexname], cmap = 'RdBu', norm = divnorm, transform=ccrs.SouthPolarStereo())
+        ax[i].coastlines()
+        ax[i].set_axis_off()
+        ax[i].set_title(indicies[i])
+
+    ax = fig.add_subplot(1,3,3, projection = ccrs.SouthPolarStereo())
+    data = seaice_m
+    for i in range(len(indicies)-1):
+        indexname = indicies[i]
+        data = data - newdata[indexname]
+    ax.contourf(dataset.x, dataset.y, data, cmap = 'RdBu', norm = divnorm, levels = 100, transform=ccrs.SouthPolarStereo())
+    ax.coastlines()
+    fig.subplots_adjust(right=0.9)
+    cbar_ax = fig.add_axes([0.95, 0.15, 0.05, 0.7])
+    cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
+
     plt.show()
