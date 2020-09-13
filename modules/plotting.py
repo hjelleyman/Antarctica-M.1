@@ -73,7 +73,7 @@ def plot_seaice_timeseries(anomlous = False, temporal_resolution = 'monthly', sp
     seaice = xr.open_dataset(output_folder + seaicename +'.nc')
 
     if seaice_source == 'nsidc':
-        seaice = seaice/1000
+        seaice = seaice
         mean_seaice = seaice_area_mean(seaice[seaicename],1)
         seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(mean_seaice.time.values.astype(float), mean_seaice)
     if seaice_source =='ecmwf':
@@ -202,6 +202,14 @@ def plot_index_sic_timeseries(anomlous = False, temporal_resolution = 'monthly',
     seaicename = f'{temp_decomp}_{temporal_resolution}_{n}_{dt}'
 
     seaice = xr.open_dataset(output_folder + 'SIC/' + seaicename +'.nc')
+
+
+    times = list(set.intersection(set(seaice.time.values), set(data.time.values)))
+
+    seaice = seaice_area_mean(seaice.sel(time=times).sortby('time'), 1)
+    data = data.sel(time=times).sortby('time')
+
+
     if seaice_source == 'ecmwf':
         seaice = xr.open_dataset(output_folder + 'ERA5/SIC/' + seaicename +'.nc')
     if seaice_source == 'ecmwf':
@@ -299,6 +307,10 @@ def plot_sic_sic_timeseries(anomlous = False, temporal_resolution = 'monthly', s
     seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
     seaice = xr.open_dataset(output_folder + 'SIC/' + seaicename +'.nc')[seaicename]
 
+    times = list(set.intersection(set(seaice.time.values), set(data.time.values)))
+
+    seaice = seaice_area_mean(seaice.sel(time=times).sortby('time'), 1)
+    data = data.sel(time=times).sortby('time')
 
     seaice = seaice_area_mean(seaice,1)
     seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice.time.values.astype(float), seaice)
@@ -929,7 +941,7 @@ def plot_regression_multiple_spatial(anomlous = False, temporal_resolution = 'mo
 
 ############ Multiple Spatial Contribution Regressions ################
 
-def plot_all_regression_multiple_contribution_spatial(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO']):
+def plot_all_regression_multiple_contribution_spatial(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'], mode = 'raw'):
     """Plots all the index timeseries.
     
     Args:
@@ -941,9 +953,9 @@ def plot_all_regression_multiple_contribution_spatial(resolutions, temporal_reso
         indicies (list, optional): what indicies to load.
     """
     for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
-        plot_regression_multiple_contribution_spatial(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/correlations/single/', n = 1)
+        plot_regression_multiple_contribution_spatial(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/contributions/spatial/', n = 1, mode = mode)
 
-def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/correlations/spatial/', n = 5):
+def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/contributions/spatial/', n = 5, seaice_source = 'nsidc', mode = 'raw'):
     """Summary
     
     Args:
@@ -953,15 +965,12 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
         imagefolder (str, optional): Description
         n (int, optional): Description
     """
+    detrend = 'raw'
     filename = f'processed_data/regressions/spatial_multiple/regr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
 
     dataset = xr.open_dataset(filename + '.nc')
     indicies = np.array([i for i in dataset])
     values   = np.array([dataset[i].values for i in dataset])
-
-
-    # area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
-    # dataset = dataset * area
 
     index_data = {}
     for indexname in indicies[:-1]:
@@ -973,7 +982,7 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
     newdata = {} 
     for indexname in indicies[:-1]:
         a = scipy.stats.linregress(index_data[indexname].time.values.astype(float), index_data[indexname])
-        newdata[indexname] = a[0] * dataset[indexname] * 24*60*60*365e9
+        newdata[indexname] = a[0] * dataset[indexname] * 24*60*60*365e9 
 
     title = temp_decomp.capitalize() + ' '
     if detrend == 'detrended':
@@ -986,11 +995,12 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
     # Plotting
     for i in range(len(indicies)-1):
         indexname = indicies[i]
-        newdata[indexname] = newdata[indexname] * area / 250
+        newdata[indexname] = newdata[indexname] * area 
         newdata[indexname] = newdata[indexname].where(newdata[indexname] !=0)
 
+
+
     max_ = max([max(newdata[indexname].max(),-newdata[indexname].min()) for indexname in indicies[:-1]])
-    # max_ = 1
     divnorm = TwoSlopeNorm(vmin=-max_, vcenter=0, vmax=max_)
     fig, ax = plt.subplots(2,2,subplot_kw={'projection': ccrs.SouthPolarStereo()}, figsize = (5,5))
     ax = ax.flatten()
@@ -1007,7 +1017,12 @@ def plot_regression_multiple_contribution_spatial(anomlous = False, temporal_res
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
     cbar.set_label('Trend contributions (km$^2$ yr$^{-1}$)')
+    filename = imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}.pdf'
+    if mode == 'percentage':
+        filename = imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}_percentage.pdf'
+    plt.savefig(filename)
     plt.show()
+
 
 ############ SIE Trends ################
 
@@ -1024,7 +1039,7 @@ def plot_all_seaice_trends(resolutions, temporal_resolution, temporal_decomposit
     for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
         plot_seaice_trend(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended',seaice_source=seaice_source)
 
-def plot_seaice_trend(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/timeseries/SIC/',seaice_source='nsidc'):
+def plot_seaice_trend(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/trends/SIC/',seaice_source='nsidc'):
     """Plots a timeseries for Antarctic SIC.
     
     Args:
@@ -1058,30 +1073,33 @@ def plot_seaice_trend(anomlous = False, temporal_resolution = 'monthly', spatial
 
     seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
     seaice = xr.open_dataset(output_folder + seaicename +'.nc')
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
 
     if seaice_source == 'nsidc':
-        seaice = seaice/250
+        seaice = seaice * area /250
         seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = xr.apply_ufunc(scipy.stats.linregress, seaice[seaicename].time.values.astype(float), seaice[seaicename], input_core_dims=[['time'],['time']], vectorize=True, dask='parallelized', output_dtypes=[float]*5, output_core_dims=[[]]*5)
     if seaice_source =='ecmwf':
         seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename])
     
     seaice_m = seaice_m * 1e9 * 60 * 60 * 24 * 365
     area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
-    seaice_m = seaice_m*area
+    # seaice_m = seaice_m*area
     seaice_m = seaice_m.where(seaice_m != 0)
     # seaice_m = seaice_m.where(seaice_p_value <= 0.05)
-    max_ = max(seaice_m.max(),-seaice_m.min())
+    max_ = seaice_m.max()
+    min_ = seaice_m.min() 
     # max_ = 1
-    divnorm = TwoSlopeNorm(vmin=-max_, vcenter=0, vmax=max_)
+    divnorm = TwoSlopeNorm(vmin=min_, vcenter=0, vmax=max_)
     fig = plt.figure(figsize = (5,5))
     ax = fig.add_subplot(111, projection = ccrs.SouthPolarStereo())
     # Plotting
-    contor = ax.contourf(seaice_m.x, seaice_m.y, seaice_m, cmap = 'RdBu', levels = 100, norm = divnorm, transform=ccrs.SouthPolarStereo())
+    contor = ax.contourf(seaice_m.x, seaice_m.y, seaice_m, cmap = 'RdBu', levels = 11, norm = divnorm, transform=ccrs.SouthPolarStereo())
     ax.coastlines()
     ax.set_axis_off()
     cbar = plt.colorbar(contor)
     cbar.set_label('Trend in SIE (km$^2$ yr$^{-1}$)')
     plt.title(title)
+    plt.savefig(imagefolder + seaicename + '.pdf')
     plt.show()
 
 
@@ -1098,7 +1116,7 @@ def plot_all_subplot_trends(resolutions, temporal_resolution, temporal_decomposi
     for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
         plot_subplot_trend(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended',seaice_source=seaice_source)
 
-def plot_subplot_trend(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/timeseries/SIC/',seaice_source='nsidc'):
+def plot_subplot_trend(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/subplots/',seaice_source='nsidc'):
     """Plots a timeseries for Antarctic SIC.
     
     Args:
@@ -1176,6 +1194,7 @@ def plot_subplot_trend(anomlous = False, temporal_resolution = 'monthly', spatia
 
     fig = plt.figure(figsize = (15,5))
 
+    # seaice_m = log_data(seaice_m)
     max_ = min(seaice_m.max(),-seaice_m.min())
     # max_ = 1
     divnorm = TwoSlopeNorm(vmin=-max_, vcenter=0, vmax=max_)
@@ -1190,7 +1209,9 @@ def plot_subplot_trend(anomlous = False, temporal_resolution = 'monthly', spatia
     ax = [fig.add_subplot(2,6,3, projection = ccrs.SouthPolarStereo()),fig.add_subplot(2,6,4, projection = ccrs.SouthPolarStereo()),fig.add_subplot(2,6,9, projection = ccrs.SouthPolarStereo()),fig.add_subplot(2,6,10, projection = ccrs.SouthPolarStereo())]
     for i in range(len(indicies)-1):
         indexname = indicies[i]
-        contor = ax[i].contourf(dataset.x, dataset.y, newdata[indexname], cmap = 'RdBu', norm = divnorm, transform=ccrs.SouthPolarStereo())
+        # newdata[indexname] = log_data(newdata[indexname])
+        newdata[indexname] = newdata[indexname].where(newdata[indexname] !=0)
+        contor = ax[i].contourf(dataset.x, dataset.y, newdata[indexname], cmap = 'RdBu', norm = divnorm, transform=ccrs.SouthPolarStereo(), levels = 100)
         ax[i].coastlines()
         ax[i].set_axis_off()
         ax[i].set_title(indicies[i])
@@ -1206,4 +1227,514 @@ def plot_subplot_trend(anomlous = False, temporal_resolution = 'monthly', spatia
     cbar_ax = fig.add_axes([0.95, 0.15, 0.05, 0.7])
     cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
 
+    plt.savefig(imagefolder + seaicename + '.pdf')
+    plt.show()
+
+def log_data(data):
+    mask = (data > 0).copy()
+    data = data.where(mask, -data)
+    data = np.log10(data)
+    data = data.where(mask, -data)
+    return data
+
+def predict_seaice(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/SIC/',seaice_source='nsidc'):
+    """Plots all of the timeseries for Antarctic SIC.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+    """
+    for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
+        plot_seaice_predict(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended',seaice_source=seaice_source)
+
+def plot_seaice_predict(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/timeseries/prediction/',seaice_source='nsidc'):
+    """Plots a timeseries for Antarctic SIC.
+    
+    Args:
+        anomlous (bool, optional): If the data is anomalous.
+        temporal_resolution (str, optional): What temporal resolution to load.
+        spatial_resolution (int, optional): What spatial resolution to load.
+        detrend (bool, optional): Wheather to load detrended data or not.
+        imagefolder (str, optional): Where to save output image.
+    """
+    output_folder = 'processed_data/SIC/'
+    if seaice_source == 'ecmwf':
+        output_folder = 'processed_data/ERA5/SIC/'
+
+    if anomlous:
+        temp_decomp = 'anomalous'
+    else:
+        temp_decomp = 'raw'
+
+
+    title = temp_decomp.capitalize() + ' '
+
+    if detrend:
+        dt = 'detrended'
+        title += dt + ' '
+    else:
+        dt = 'raw'
+
+    title += temporal_resolution
+    title += ' SIE prediction'
+
+
+#    Loading Seaice Trends
+    seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
+    seaice = xr.open_dataset(output_folder + seaicename +'.nc')
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    seaice = seaice
+
+
+#    Index contributions
+    filename = f'processed_data/regressions/spatial_multiple/regr_{temp_decomp}_{temporal_resolution}_{dt}_{spatial_resolution}'
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+    index_data = {}
+    for indexname in indicies[:-1]:
+        filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{dt}'
+        index_data[indexname] = xr.open_dataset('processed_data/INDICIES/' + filename +'.nc')[indexname]
+        index_data[indexname] = (index_data[indexname] - index_data[indexname].mean()) 
+        index_data[indexname] =  index_data[indexname] / index_data[indexname].std()
+
+    times = list(set.intersection(set(seaice.time.values), *(set(index_data[i].time.values)for i in indicies[:-1])))
+
+    prediction = seaice.copy() * 0
+    for indexname in indicies:
+        if indexname in index_data.keys():
+            prediction += index_data[indexname] * dataset[indexname]
+        else:
+            prediction += dataset[indexname]
+
+    seaice = seaice.sortby('time').sel(time=times).sortby('time')
+    prediction = prediction.sortby('time').sel(time=times).sortby('time')
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    # ax2 = ax.twinx()
+    # ax2.plot([],[])
+    ln1 = ax.plot(seaice.time, (seaice[seaicename]*area/250).sum(dim = ('x', 'y')), label = 'SIE')
+    ln2 = ax.plot(seaice.time, (prediction[seaicename]*area/250).sum(dim = ('x', 'y')), label = 'Prediction')
+    # ax.set_xlim([min(times),max(times)])
+
+    lines = ln1 + ln2
+    labels = [line.get_label() for line in lines]
+    plt.legend(lines,labels,bbox_to_anchor=(0.99, -0.15), ncol = 2, loc = 'upper right')
+
+
+    data = (prediction[seaicename]*area/250).sum(dim = ('x', 'y'))
+    data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
+    plt.plot(data.time, data_m * data.time.values.astype(float) + data_b, color = '#EA1B10')
+    data = (seaice[seaicename]*area/250).sum(dim = ('x', 'y'))
+    data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
+    plt.plot(data.time, data_m * data.time.values.astype(float) + data_b, color = '#177E89')
+    plt.title(title)
+
+    plt.savefig(imagefolder + seaicename + '.pdf')
+    plt.show()
+
+def predict_seaice_components(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/SIC/',seaice_source='nsidc'):
+    """Plots all of the timeseries for Antarctic SIC.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+    """
+    for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
+        plot_seaice_predict_components(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended',seaice_source=seaice_source)
+
+def plot_seaice_predict_components(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/timeseries/prediction/',seaice_source='nsidc'):
+    """Plots a timeseries for Antarctic SIC.
+    
+    Args:
+        anomlous (bool, optional): If the data is anomalous.
+        temporal_resolution (str, optional): What temporal resolution to load.
+        spatial_resolution (int, optional): What spatial resolution to load.
+        detrend (bool, optional): Wheather to load detrended data or not.
+        imagefolder (str, optional): Where to save output image.
+    """
+    output_folder = 'processed_data/SIC/'
+    if seaice_source == 'ecmwf':
+        output_folder = 'processed_data/ERA5/SIC/'
+
+    if anomlous:
+        temp_decomp = 'anomalous'
+    else:
+        temp_decomp = 'raw'
+
+
+    title = temp_decomp.capitalize() + ' '
+
+    if detrend:
+        dt = 'detrended'
+        title += dt + ' '
+    else:
+        dt = 'raw'
+
+    title += temporal_resolution
+    title += ' SIE prediction'
+
+
+#    Loading Seaice Trends
+    seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
+    seaice = xr.open_dataset(output_folder + seaicename +'.nc')
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    seaice = seaice
+
+
+#    Index contributions
+    filename = f'processed_data/regressions/spatial_multiple/regr_{temp_decomp}_{temporal_resolution}_{dt}_{spatial_resolution}'
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+    index_data = {}
+    for indexname in indicies[:-1]:
+        filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{dt}'
+        index_data[indexname] = xr.open_dataset('processed_data/INDICIES/' + filename +'.nc')[indexname]
+        index_data[indexname] = (index_data[indexname] - index_data[indexname].mean()) 
+        index_data[indexname] =  index_data[indexname] / index_data[indexname].std()
+
+    times = list(set.intersection(set(seaice.time.values), *(set(index_data[i].time.values)for i in indicies[:-1])))
+
+    prediction = seaice.copy() * 0
+    predictions = []
+    for indexname in indicies:
+        if indexname in index_data.keys():
+            prediction += index_data[indexname].sel(time=times).sortby('time') * dataset[indexname]
+            predictions += [index_data[indexname].sel(time=times).sortby('time') * dataset[indexname]]
+        else:
+            prediction += dataset[indexname]
+            predictions += [dataset[indexname]]
+
+
+    seaice = seaice.sortby('time').sel(time=times).sortby('time')
+    prediction = prediction.sortby('time').sel(time=times).sortby('time')
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.axhline(y=0, alpha = 0.5)
+    data = (prediction[seaicename]*area/250).sum(dim = ('x', 'y'))
+    data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
+    plt.plot(data.time, data_m * data.time.values.astype(float) + data_b, color = '#EA1B10', alpha = 0.5)
+    data = (seaice[seaicename]*area/250).sum(dim = ('x', 'y'))
+    data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
+    plt.plot(data.time, data_m * data.time.values.astype(float) + data_b, color = '#177E89', alpha = 0.5)
+
+
+    ln1 = ax.plot(seaice.time, (seaice[seaicename]*area/250).sum(dim = ('x', 'y')), label = 'SIE', alpha = 0.5)
+    ln2 = ax.plot(seaice.time, (prediction[seaicename]*area/250).sum(dim = ('x', 'y')), label = 'Prediction', alpha = 0.5)
+
+    lines = ln1 + ln2
+    i = 0
+    for indexname in indicies[:-1]:
+        predict = index_data[indexname] * dataset[indexname]
+        lines += ax.plot(predict.time, (predict*area/250).sum(dim = ('x', 'y')), '--', label = f'{indexname}', linewidth=1)
+        i += 1
+
+    labels = [line.get_label() for line in lines]
+    plt.legend(lines,labels,bbox_to_anchor=(0.99, -0.15), ncol = 3, loc = 'upper right')
+    plt.title(title)
+
+    plt.savefig(imagefolder + seaicename + '_components.pdf')
+    plt.show()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.axhline(y=0, alpha = 0.5)
+    data = (prediction[seaicename]*area/250).sum(dim = ('x', 'y'))
+    data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
+    # plt.plot(data.time, data_m * data.time.values.astype(float) + data_b, color = '#EA1B10', alpha = 0.5)
+    data = (seaice[seaicename]*area/250).sum(dim = ('x', 'y'))
+    data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(data.time.values.astype(float), data)
+    # plt.plot(data.time, data_m * data.time.values.astype(float) + data_b, color = '#177E89', alpha = 0.5)
+
+
+    norm = (seaice[seaicename]*area/250).sum(dim = ('x', 'y')) / 100
+    ln1 = ax.plot(seaice.time, (seaice[seaicename]*area/250).sum(dim = ('x', 'y')).sortby('time')/norm, label = 'SIE', alpha = 0.5)
+    ln2 = ax.plot(seaice.time, (prediction[seaicename]*area/250).sum(dim = ('x', 'y')).sortby('time')/norm, label = 'Prediction', alpha = 0.5)
+
+    lines = ln1 + ln2
+    i = 0
+    for indexname in indicies[:-1]:
+        predict = index_data[indexname].sel(time=times).sortby('time') * dataset[indexname]
+        lines += ax.plot(predict.time, (predict*area/250).sum(dim = ('x', 'y'))/norm, '--', label = f'{indexname}', linewidth=1)
+        i += 1
+
+    labels = [line.get_label() for line in lines]
+    plt.legend(lines,labels,bbox_to_anchor=(0.99, -0.15), ncol = 3, loc = 'upper right')
+    plt.title(title)
+
+    plt.savefig(imagefolder + seaicename + '_components_normalised.pdf')
+    plt.show()
+
+
+
+######################## Percentage contributions #######################
+
+def plot_all_regression_multiple_contribution_spatial_percentage(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/INDICIES/', indicies = ['SAM', 'IPO', 'DMI', 'ENSO'], mode = 'raw'):
+    """Plots all the index timeseries.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+        indicies (list, optional): what indicies to load.
+    """
+    for  temp_res, temp_decomp, dt in itertools.product(temporal_resolution, temporal_decomposition, detrend):
+        plot_regression_multiple_contribution_spatial_percentage(anomlous = temp_decomp, temporal_resolution = temp_res, detrend = dt, temp_decomp = temp_decomp, imagefolder = 'images/contributions/spatial/', n = 1, mode = mode)
+
+def plot_regression_multiple_contribution_spatial_percentage(anomlous = False, temporal_resolution = 'monthly', detrend = 'raw', temp_decomp = 'anomalous', imagefolder = 'images/contributions/spatial/', n = 5, seaice_source = 'nsidc', mode = 'raw'):
+    """Summary
+    
+    Args:
+        anomlous (bool, optional): Description
+        temporal_resolution (str, optional): Description
+        detrend (bool, optional): Description
+        imagefolder (str, optional): Description
+        n (int, optional): Description
+    """
+    detrend = 'raw'
+    filename = f'processed_data/regressions/spatial_multiple/regr_{temp_decomp}_{temporal_resolution}_{detrend}_{n}'
+
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+
+    index_data = {}
+    for indexname in indicies[:-1]:
+        filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{detrend}'
+        index_data[indexname] = xr.open_dataset('processed_data/INDICIES/' + filename +'.nc')[indexname]
+        index_data[indexname] = (index_data[indexname] - index_data[indexname].mean()) 
+        index_data[indexname] =  index_data[indexname] / index_data[indexname].std()
+        
+    newdata = {} 
+    for indexname in indicies[:-1]:
+        a = scipy.stats.linregress(index_data[indexname].time.values.astype(float), index_data[indexname])
+        newdata[indexname] = a[0] * dataset[indexname] * 24*60*60*365e9 
+
+    title = temp_decomp.capitalize() + ' '
+    if detrend == 'detrended':
+        title += detrend + ' '
+
+    title += temporal_resolution
+    title += f' SIC trend contributions'
+
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    # Plotting
+    for i in range(len(indicies)-1):
+        indexname = indicies[i]
+        # newdata[indexname] = newdata[indexname] * area
+        newdata[indexname] = newdata[indexname].where(newdata[indexname] !=0)
+
+
+    output_folder = 'processed_data/SIC/'
+    if seaice_source == 'ecmwf':
+        output_folder = 'processed_data/ERA5/SIC/'
+
+    if anomlous:
+        temp_decomp = 'anomalous'
+    else:
+        temp_decomp = 'raw'
+
+
+    title = temp_decomp.capitalize() + ' '
+
+    if detrend== 'detrended':
+        dt = 'detrended'
+        title += dt + ' '
+    else:
+        dt = 'raw'
+
+    title += temporal_resolution
+    title += ' SIE trends'
+
+
+    seaicename = f'{temp_decomp}_{temporal_resolution}_{n}_{dt}'
+    seaice = xr.open_dataset(output_folder + seaicename +'.nc')
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+
+    if seaice_source == 'nsidc':
+        seaice = seaice * area /250
+        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = xr.apply_ufunc(scipy.stats.linregress, seaice[seaicename].time.values.astype(float), seaice[seaicename], input_core_dims=[['time'],['time']], vectorize=True, dask='parallelized', output_dtypes=[float]*5, output_core_dims=[[]]*5)
+    if seaice_source =='ecmwf':
+        seaice_m, seaice_b, seaice_r_value, seaice_p_value, seaice_std_err = scipy.stats.linregress(seaice[seaicename].time.values.astype(float), seaice[seaicename])
+    
+    seaice_m = seaice_m * 1e9 * 60 * 60 * 24 * 365
+    seaice_m = seaice_m.where(seaice_m != 0)
+
+    # for i in range(len(indicies)-1):
+    #     indexname = indicies[i] 
+    #     newdata[indexname] = newdata[indexname] / seaice_m
+    #     plt.imshow(seaice_m.where(abs(seaice_m)<=10))
+    #     plt.colorbar()
+    #     plt.show()
+    #     plt.imshow(dataset[indexname])
+    #     plt.colorbar()
+    #     plt.show()
+    #     plt.imshow(newdata[indexname].where(abs(newdata[indexname]) <=10))
+    #     plt.colorbar()
+    #     plt.show()
+
+    if mode == 'percentage': 
+        for i in range(len(indicies)-1):
+            indexname = indicies[i]
+            newdata[indexname] = newdata[indexname] /seaice_m
+
+    max_ = max([newdata[indexname].max() for indexname in indicies[:-1]])
+    min_ = min([newdata[indexname].min() for indexname in indicies[:-1]])
+    # max_ = 100
+    divnorm = TwoSlopeNorm(vmin=min_, vcenter=0, vmax=max_)
+    fig, ax = plt.subplots(2,2,subplot_kw={'projection': ccrs.SouthPolarStereo()}, figsize = (5,5))
+    ax = ax.flatten()
+
+    # Plotting
+    for i in range(len(indicies)-1):
+        indexname = indicies[i]
+        if mode == 'percentage': newdata[indexname] = newdata[indexname] / seaice_m *100
+        contor = ax[i].contourf(dataset.x, dataset.y, newdata[indexname], cmap = 'RdBu',levels = 11, norm = divnorm, transform=ccrs.SouthPolarStereo())
+        ax[i].coastlines()
+        ax[i].set_axis_off()
+        ax[i].set_title(indicies[i])  
+    fig.suptitle(title)
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
+    cbar.set_label('Trend contributions (km$^2$ yr$^{-1}$)')
+    filename = imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}.pdf'
+    if mode == 'percentage':
+        filename = imagefolder + f'{temp_decomp}_{temporal_resolution}_{detrend}_{n}_{seaice_source}_percentage.pdf'
+    plt.savefig(filename)
+    plt.show()
+
+
+def predict_seaice_components_scatter(resolutions, temporal_resolution, temporal_decomposition, detrend, imagefolder = 'images/timeseries/SIC/',seaice_source='nsidc'):
+    """Plots all of the timeseries for Antarctic SIC.
+    
+    Args:
+        resolutions (list of int): What spatial resolutions to load.
+        temporal_resolution (list of str): What temporal resolutions to load.
+        temporal_decomposition (list of str): Anomalous or not.
+        detrend (list of bool): detrended or not.
+        imagefolder (str, optional): Folder to save output images to.
+    """
+    for n, temp_res, temp_decomp, dt in itertools.product(resolutions, temporal_resolution, temporal_decomposition, detrend):
+        plot_seaice_predict_components_scatter(anomlous = 'anomalous' == temp_decomp, temporal_resolution = temp_res, spatial_resolution = n, detrend = dt == 'detrended',seaice_source=seaice_source)
+
+def plot_seaice_predict_components_scatter(anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, imagefolder = 'images/timeseries/prediction/',seaice_source='nsidc'):
+    """Plots a timeseries for Antarctic SIC.
+    
+    Args:
+        anomlous (bool, optional): If the data is anomalous.
+        temporal_resolution (str, optional): What temporal resolution to load.
+        spatial_resolution (int, optional): What spatial resolution to load.
+        detrend (bool, optional): Wheather to load detrended data or not.
+        imagefolder (str, optional): Where to save output image.
+    """
+    output_folder = 'processed_data/SIC/'
+    if seaice_source == 'ecmwf':
+        output_folder = 'processed_data/ERA5/SIC/'
+
+    if anomlous:
+        temp_decomp = 'anomalous'
+    else:
+        temp_decomp = 'raw'
+
+
+    title = temp_decomp.capitalize() + ' '
+
+    if detrend:
+        dt = 'detrended'
+        title += dt + ' '
+    else:
+        dt = 'raw'
+
+    title += temporal_resolution
+    title += ' SIE prediction'
+
+
+#    Loading Seaice Trends
+    seaicename = f'{temp_decomp}_{temporal_resolution}_{spatial_resolution}_{dt}'
+    seaice = xr.open_dataset(output_folder + seaicename +'.nc')
+    area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
+    seaice = seaice
+
+
+#    Index contributions
+    filename = f'processed_data/regressions/spatial_multiple/regr_{temp_decomp}_{temporal_resolution}_{dt}_{spatial_resolution}'
+    dataset = xr.open_dataset(filename + '.nc')
+    indicies = np.array([i for i in dataset])
+    values   = np.array([dataset[i].values for i in dataset])
+    index_data = {}
+    for indexname in indicies[:-1]:
+        filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{dt}'
+        index_data[indexname] = xr.open_dataset('processed_data/INDICIES/' + filename +'.nc')[indexname]
+        index_data[indexname] = (index_data[indexname] - index_data[indexname].mean()) 
+        index_data[indexname] =  index_data[indexname] / index_data[indexname].std()
+
+    times = list(set.intersection(set(seaice.time.values), *(set(index_data[i].time.values)for i in indicies[:-1])))
+
+    prediction = seaice.copy() * 0
+    predictions = []
+    for indexname in indicies:
+        if indexname in index_data.keys():
+            prediction += index_data[indexname].sel(time=times).sortby('time') * dataset[indexname]
+            predictions += [index_data[indexname].sel(time=times).sortby('time') * dataset[indexname]]
+        else:
+            prediction += dataset[indexname]
+            predictions += [dataset[indexname]]
+
+
+    seaice = seaice.sortby('time').sel(time=times).sortby('time')
+    prediction = prediction.sortby('time').sel(time=times).sortby('time')
+
+
+    fig = plt.figure(figsize = [7,14])
+
+    ax1 = fig.add_subplot(4,2,1)
+    ax2 = fig.add_subplot(4,2,2)
+    ax3 = fig.add_subplot(4,2,3)
+    ax4 = fig.add_subplot(4,2,4)
+    smallaxes = [ax1,ax2,ax3,ax4]
+    AX  = fig.add_subplot(2,1,2)
+    x_data = (seaice[seaicename]*area/250).sum(dim = ('x', 'y'))
+    for i in range(4):
+        ax = smallaxes[i]
+        indexname = indicies[i]
+        predict = index_data[indexname].sel(time=times).sortby('time') * dataset[indexname]
+        y_data = (predict*area/250).sum(dim = ('x', 'y'))
+        data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(x_data, y_data)
+        r, p = scipy.stats.pearsonr(x_data, y_data)
+        ax.scatter(x_data, y_data)
+        ax.plot(x_data,data_m*x_data+data_b)
+        ax.set_title(indexname)
+        lim = max([-min(x_data),-min(y_data),max(x_data),max(y_data)])*1.05
+        ax.text(-lim*0.9, lim*0.55, f'gradient = {data_m:.2f}\ncorrelation = {r:.2f}\np-value = {p:.2f}')
+        ax.set_ylim([-lim, lim])
+        ax.set_xlim([-lim, lim])
+        ax.axhline(0, alpha = 0.2)
+        ax.axvline(0, alpha = 0.2)
+    y_data = (prediction[seaicename]*area/250).sum(dim = ('x', 'y'))
+    AX.scatter(x_data, y_data)
+    data_m, data_b, data_r_value, data_p_value, data_std_err = scipy.stats.linregress(x_data, y_data)
+    r, p = scipy.stats.pearsonr(x_data, y_data)
+    AX.plot(x_data,data_m*x_data+data_b)
+    AX.set_title('Total Prediction')
+    lim = max([-min(x_data),-min(y_data),max(x_data),max(y_data)])*1.05
+    AX.text(-lim*0.9, lim*0.7, f'gradient = {data_m:.2f}\ncorrelation = {r:.2f}\np-value = {p:.2f}')
+    AX.set_ylim([-lim, lim])
+    AX.set_xlim([-lim, lim])
+    AX.axhline(0, alpha = 0.2)
+    AX.axvline(0, alpha = 0.2)
+    fig.suptitle(title)
+
+    plt.savefig(imagefolder + seaicename + 'scatter.pdf')
     plt.show()

@@ -73,7 +73,7 @@ class regressor(object):
 		spatial_resolution (TYPE): Description
 		temporal_resolution (TYPE): Description
 	"""
-	def __init__(self, process_seaice = True, process_indicies = True, indicies = ['SAM'], anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, outputfolder = 'processed_data/correlations/', input_folder = 'processed_data/', seaice_source='nsidc'):
+	def __init__(self, process_seaice = True, process_indicies = True, indicies = ['SAM'], anomlous = False, temporal_resolution = 'monthly', spatial_resolution = 1, detrend = False, outputfolder = 'processed_data/correlations/', input_folder = 'processed_data/', seaice_source='nsidc', minyear = 1979, maxyear = 2020):
 		"""
 		Args:
 			process_seaice (bool, optional): Decides if we should load seaice data.
@@ -96,6 +96,8 @@ class regressor(object):
 		self.outputfolder        = outputfolder
 		self.input_folder        = input_folder
 		self.seaice_source       = seaice_source
+		self.minyear             = minyear
+		self.maxyear             = maxyear
 
 		if self.seaice_source == 'ecmwf':
 			self.outputfolder = 'processed_data/ERA5/regressions/'
@@ -146,6 +148,8 @@ class regressor(object):
 			self.seaice_data = xr.open_dataset(self.input_folder + 'ERA5/SIC/' + seaicename +'.nc')
 			self.seaice_data = self.seaice_data[seaicename]
 
+		self.seaice_data = self.seaice_data.sel(time=slice(f"{self.minyear}-01-01", f"{self.maxyear}-12-31"))
+
 
 	def load_indicies(self):
 		"""Loads index data onto the correlator.
@@ -165,6 +169,7 @@ class regressor(object):
 		for indexname in self.indicies:
 			filename = f'{indexname}_{temp_decomp}_{self.temporal_resolution}_{dt}'
 			self.index_data[indexname] = xr.open_dataset(self.input_folder + 'INDICIES/' + filename +'.nc')[indexname]
+			self.index_data[indexname] = self.index_data[indexname].sel(time=slice(f"{self.minyear}-01-01", f"{self.maxyear}-12-31"))
 
 	def regress_mean_sic_indicies(self):
 		"""regresses mean sic against indicies.

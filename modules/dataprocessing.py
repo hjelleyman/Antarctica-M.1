@@ -62,7 +62,7 @@ class dataprocessor(object):
         self.rawdatafolder = rawdatafolder
         self.processeddatafolder = processeddatafolder
 
-    def load_data(self, load_seaice = False, load_indicies = False, load_ERA5 = False, indicies = ['SAM'], variables = ['t2m']):
+    def load_data(self, load_seaice = False, load_indicies = False, load_ERA5 = False, indicies = ['SAM'], variables = ['t2m'], minyear = 1979, maxyear = 2020):
         """Adds raw data to the processor object.
         
         Parameters
@@ -101,6 +101,7 @@ class dataprocessor(object):
                                            processeddatafolder = self.processeddatafolder)
             self.seaice_data.load_data()
             self.seaice_data.data = self.seaice_data.data.where(self.seaice_data.data > 0.15*250, other = 0.0)
+            self.seaice_data.data = self.seaice_data.data.sel(time=slice(f"{minyear}-01-01", f"{maxyear}-12-31"))
 
         if self.load_indicies:
             heading = f"Loading index data"
@@ -109,6 +110,7 @@ class dataprocessor(object):
                                          processeddatafolder = self.processeddatafolder,
                                          indicies = self.indicies)
             self.index_data.load_data()
+            self.index_data.data = {index : self.index_data.data[index].sel(time=slice(f"{minyear}-01-01", f"{maxyear}-12-31")) for index in self.index_data.data.keys()}
 
         if self.load_ERA5:
             heading = f"Loading ECMWF ERA5 data"
