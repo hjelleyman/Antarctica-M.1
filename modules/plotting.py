@@ -1295,7 +1295,6 @@ def plot_seaice_predict(anomlous = False, temporal_resolution = 'monthly', spati
     indicies = np.array([i for i in dataset])
     values   = np.array([dataset[i].values for i in dataset])
     index_data = {}
-    print(indicies)
     for indexname in indicies[:-1]:
         filename = f'{indexname}_{temp_decomp}_{temporal_resolution}_{dt}'
         index_data[indexname] = xr.open_dataset('processed_data/INDICIES/' + filename +'.nc')[indexname]
