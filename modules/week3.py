@@ -91,15 +91,17 @@ def load_data(variables,projection, temporal_resolution,temporal_decomposition,d
 		# file = 'download.nc'
 		variable_data = xr.Dataset()
 		for variable in variables_to_load:
-			variable_data[variable] = xr.open_dataset(f'download/{variable}.nc')[variable]
-
+			variable_data[variable] = xr.open_dataset(f'download/{variable}_transformed.nc').__xarray_dataarray_variable__  
 
 		attrs = {variable : variable_data[variable].attrs for variable in variables_to_load}
-		variable_data = variable_data.sel(expver=1)
+		# variable_data = variable_data.sel(expver=1)
+		print(variable_data)
 		variable_data = variable_data.sel(latitude=slice(-40,-90))
+
 		if 'anomalous' in temporal_decomposition:
 			climatology = variable_data.groupby("time.month").mean("time")
 			variable_data = variable_data.groupby("time.month") - climatology
+
 
 		# temporal resolution
 		if 'seasonal' in temporal_resolution:
@@ -108,27 +110,27 @@ def load_data(variables,projection, temporal_resolution,temporal_decomposition,d
 			variable_data = variable_data.resample(time="YS").mean()
 
 		variable_data = variable_data.interp(time=data.time)
+		# Y, X = [10*np.arange(435000,-395000,-2500),
+		# 		10*np.arange(-395000,395000,2500)]
+		# x,y = np.meshgrid(X,Y)
+		# inProj = Proj(init='epsg:3031')
+		# outProj = Proj(init='epsg:4326')
+		# x,y = transform(inProj,outProj,x,y)
+		# x = x.flatten()
+		# y = y.flatten()
+		# x[x<0] = x[x<0]+360 
+		# # data = data.stack(z=('longitude','latitude'))
+		# x = xr.DataArray(x, dims='z')
+		# y = xr.DataArray(y, dims='z')
+		# variable_data = variable_data.interp(longitude=x, latitude=y, method = 'linear', kwargs={"fill_value": 0.0})
+		# for variable in variables_to_load:
+		# 	interpolated = variable_data[variable].values.reshape([data.time.size,len(Y),len(X)])
+		# 	dims_ = ['time','y','x']
 
-		Y, X = [10*np.arange(435000,-395000,-2500),
-				10*np.arange(-395000,395000,2500)]
-		x,y = np.meshgrid(X,Y)
-		inProj = Proj(init='epsg:3031')
-		outProj = Proj(init='epsg:4326')
-		x,y = transform(inProj,outProj,x,y)
-		x = x.flatten()
-		y = y.flatten()
-		x[x<0] = x[x<0]+360 
-		# data = data.stack(z=('longitude','latitude'))
-		x = xr.DataArray(x, dims='z')
-		y = xr.DataArray(y, dims='z')
-		variable_data = variable_data.interp(longitude=x, latitude=y, method = 'linear', kwargs={"fill_value": 0.0})
+		# 	interpolated = xr.DataArray(data = interpolated, dims=dims_,coords = [data.time,Y,X])
 		for variable in variables_to_load:
-			interpolated = variable_data[variable].values.reshape([data.time.size,len(Y),len(X)])
-			dims_ = ['time','y','x']
-
-			interpolated = xr.DataArray(data = interpolated, dims=dims_,coords = [data.time,Y,X])
-
-			data[variable] = interpolated.transpose(*dims)
+			print(variable)
+			data[variable] = variable_data[variable].transpose(*dims)
 			data[variable].attrs = attrs[variable]
 	
 	if len(geopotential_to_load)>0:

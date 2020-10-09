@@ -457,7 +457,6 @@ def multiple_fast_regression(seaice, ds):
 
 
 from scipy.linalg import lstsq
-import brisk
 
 def fast_regression(X,y):
     X = X.values
