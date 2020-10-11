@@ -189,7 +189,8 @@ def multiple_fast_regression(data, dependant, independant):
 	"""
 	does regression fast
 	"""
-	data = data.dropna(dim='time').copy()
+	data = data[[dependant]+independant].dropna(dim='time').copy()
+	data = data.transpose('x','y','time')
 	if type(dependant) == str:
 		y = data[dependant].values
 	else: y = data[dependant].to_array()
@@ -205,8 +206,8 @@ def multiple_fast_regression(data, dependant, independant):
 	newX[:-1,:] = X
 	p = np.empty([*newX.shape[:-1]])
 
-	print('Finding coefficients')
 
+	print('Finding coefficients')
 	time.sleep(0.2)
 	for i,j in tqdm(list(itertools.product(range(y.shape[0]), range(y.shape[1])))):
 		p[:,i,j] = lstsq(newX[:,i,j,:].transpose(), y[i,j,:])[0]
@@ -221,7 +222,8 @@ def multiple_fast_regression(data, dependant, independant):
 	dims = ['x','y','time']
 	coords = [data[coord] for coord in dims]
 	yhat = xr.DataArray(data=yhat, dims= dims, coords = coords)
-	data['prediction'] = yhat
+	prediction_name = 'prediction_' + '_'.join(independant)
+	data['prediction_name'] = yhat
 	for i in range (len (independant)):
 		param = p[i]
 		variable = independant[i]

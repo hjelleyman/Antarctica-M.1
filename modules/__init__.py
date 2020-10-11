@@ -9,3 +9,4 @@ from modules import misc           as misc
 from modules import plotting2      as p2
 from modules import week2          as w2
 from modules import week3          as w3
+from modules import week4          as w4
