@@ -179,7 +179,7 @@ def load_data(variables,projection, temporal_resolution,temporal_decomposition,d
 	if seaice:
 		seaice_data = p2.load_seaice([1], [temporal_resolution], [temporal_decomposition], [detrend]).transpose(*dims)
 		for seaicename in seaice_data:
-			data['seaice'] = seaice_data[seaicename].interp(time=time)
+			data['seaice'] = seaice_data[seaicename]
 
 
 	return data
@@ -223,7 +223,7 @@ def multiple_fast_regression(data, dependant, independant):
 	coords = [data[coord] for coord in dims]
 	yhat = xr.DataArray(data=yhat, dims= dims, coords = coords)
 	prediction_name = 'prediction_' + '_'.join(independant)
-	data['prediction_name'] = yhat
+	data[prediction_name] = yhat
 	for i in range (len (independant)):
 		param = p[i]
 		variable = independant[i]
