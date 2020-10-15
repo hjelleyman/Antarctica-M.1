@@ -212,8 +212,7 @@ def multiple_fast_regression(data, dependant, independant):
 	newX[:-1,:] = X
 	p = np.empty([*newX.shape[:-1]])
 
-
-	print('Finding coefficients')
+	print(f'Finding coefficients for {independant} against {dependant}')
 	time.sleep(0.2)
 	for i,j in tqdm(list(itertools.product(range(y.shape[0]), range(y.shape[1])))):
 		if np.isnan(np.sum(newX[:,i,j,:])) or np.isnan(np.sum(y[i,j,:])):
@@ -272,7 +271,7 @@ def plot_coefficients(regression_results, dependant,independant):
 		data = data.where(np.abs(data) != 0.0)
 		ax = fig.add_subplot(1,N,i+1, projection = ccrs.SouthPolarStereo())
 		ax.contourf(data.x,data.y,data.values.transpose(), cmap = 'RdBu',norm = divnorm, transform = ccrs.SouthPolarStereo())
-		ax.set_title(variables[i])
+		ax.set_title(variables[i].replace('_', '\_'))
 		ax.coastlines()
 	fig.suptitle(f'Regression coefficients')
 	fig.subplots_adjust(right=0.95)
@@ -303,7 +302,7 @@ def contribution_to_trends(regression_results, dependant,independant):
 	ax.coastlines()
 	ax.set_axis_off()
 	ax.set_title('Trend')
-	cbar = plt.colorbar(contor, format=ticker.FuncFormatter(fmt))
+	cbar = plt.colorbar(contor, format=ticker.FuncFormatter(fmt_colorbar))
 	cbar.set_label('Trend (\% yr$^{-1}$)')
 	fig.suptitle(f'Seaice trends')
 
@@ -314,7 +313,7 @@ def contribution_to_trends(regression_results, dependant,independant):
 	contor = ax2.contourf(data.x, data.y, data.values.transpose(), cmap = 'RdBu', levels = levels, norm = divnorm, transform=ccrs.SouthPolarStereo())
 	ax2.coastlines()
 	ax2.set_axis_off()
-	cbar = plt.colorbar(contor, format=ticker.FuncFormatter(fmt))
+	cbar = plt.colorbar(contor, format=ticker.FuncFormatter(fmt_colorbar))
 	cbar.set_label('Trend (\% yr$^{-1}$)')
 	ax2.set_title('Predicted Trend')
 
@@ -325,7 +324,7 @@ def contribution_to_trends(regression_results, dependant,independant):
 	contor = ax.contourf(residual.x, residual.y, residual.values.transpose(), cmap = 'RdBu', levels = levels, norm = divnorm, transform=ccrs.SouthPolarStereo())
 	ax.coastlines()
 	ax.set_axis_off()
-	cbar = plt.colorbar(contor, format=ticker.FuncFormatter(fmt))
+	cbar = plt.colorbar(contor, format=ticker.FuncFormatter(fmt_colorbar))
 	cbar.set_label('Trend (\% yr$^{-1}$)')
 	ax.set_title('Residual')
 	plt.savefig(f'images/week4/Trend_Contribution_{dependant}_'+'_'.join(independant)+'.pdf')
@@ -373,18 +372,24 @@ def plot_contribution_timeseries(regression_results, dependant,independant):
 	plt.show()
 
 
-def plot_individual_spatial_contributions(regression_results, dependant,independant):
+def plot_individual_spatial_contributions(regression_results, dependant,independant, proportional = False):
 	variables = [f'prediction_{ind}' for ind in independant]
 
 	N = len(variables)
 	gradient = regression_results[variables].polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
 
+	if proportional:
+		gradient = gradient / (regression_results[dependant].polyfit(dim='time', deg=1).sel(degree=1).polyfit_coefficients * 1e9*60*60*24*365)
+
+	# print(gradient, regression_results[dependant].polyfit(dim='time', deg=1).sel(degree=1).polyfit_coefficients * 1e9*60*60*24*365)
 	fig = plt.figure(figsize=(5*N,5))
-	max_ = max([gradient[indexname].max() for indexname in gradient])
-	min_ = min([gradient[indexname].min() for indexname in gradient])
+	# max_ = max([gradient[indexname].max() for indexname in gradient])
+	# min_ = min([gradient[indexname].min() for indexname in gradient])
+	max_ = 1
+	min_ = -1
 	if max_>min_ and max_>0 and min_<0:
 		divnorm = TwoSlopeNorm(vmin=min_, vcenter=0, vmax=max_)
-		levels = np.arange(min_,max_,0.001)
+		levels = np.linspace(min_,max_,15)
 	else:
 		sys.exit(f'min = {min_.values}, max = {max_.values}')
 	for i in range(N):
@@ -392,16 +397,19 @@ def plot_individual_spatial_contributions(regression_results, dependant,independ
 		data = data.where(np.abs(data) != 0.0)
 		ax = fig.add_subplot(1,N,i+1, projection = ccrs.SouthPolarStereo())
 		contor = ax.contourf(data.x,data.y,data.values.transpose(), cmap = 'RdBu',norm = divnorm, transform = ccrs.SouthPolarStereo(), levels = levels)
-		ax.set_title(variables[i])
+		ax.set_title(variables[i].replace('_', '\_'))
 		ax.coastlines()
-		plt.colorbar(contor, format=ticker.FuncFormatter(fmt))
+		plt.colorbar(contor, format=ticker.FuncFormatter(fmt_colorbar))
 	fig.suptitle(f'Regression Contributions')
 	# fig.subplots_adjust(right=0.95)
 	# cbar_ax = fig.add_axes([0.96, 0.15, 0.02, 0.7])
 	# cbar = fig.colorbar(cm.ScalarMappable(norm=divnorm, cmap='RdBu'), cax=cbar_ax, shrink=0.88)
 	# cbar.set_label('Regression Contributions')
+	if proportional:
+		plt.savefig(f'images/week4/individual_contributions_proportional_{dependant}_'+'_'.join(independant)+'.pdf')
 
-	plt.savefig(f'images/week4/individual_contributions_{dependant}_'+'_'.join(independant)+'.pdf')
+	else:
+		plt.savefig(f'images/week4/individual_contributions_{dependant}_'+'_'.join(independant)+'.pdf')
 
 	plt.show()
 
@@ -457,12 +465,15 @@ def plotting(regression_results, dependant,independant):
 	plot_contribution_timeseries(regression_results, dependant,independant)
 	plot_individual_spatial_contributions(regression_results, dependant,independant)
 
-def _get_stats(regression_results, dependant):
+def _get_stats(regression_results, dependant, independant):
+	v = [vi for vi in regression_results if any([ind in vi for ind in independant])] + [dependant]
+
+	regression_results = regression_results[v].copy()
 	cols = ['spatial_correlation','temporal_correlation','Predicted_Trend', 'Actual_Trend']
 	results = pd.Series(index=cols)
 	
 	# Spatial trend correlation
-	prediction_trend = regression_results.prediction.polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
+	prediction_trend = regression_results['prediction_'+'_'.join(independant)].polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
 	dependant_trend  = regression_results[dependant].polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
 	corr = xr.corr(dependant_trend.polyfit_coefficients, prediction_trend.polyfit_coefficients, dim = ('x','y')).values
 	results['spatial_correlation'] = corr
@@ -471,12 +482,12 @@ def _get_stats(regression_results, dependant):
 	if dependant == 'seaice':	
 		area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
 		dependant_timeseries = (regression_results[dependant]*area).sum(dim=('x','y'))
-		predicted_timeseries = (regression_results.prediction*area).sum(dim=('x','y'))
+		predicted_timeseries = (regression_results['prediction_'+'_'.join(independant)]*area).sum(dim=('x','y'))
 		predicted_timeseries = predicted_timeseries.where(predicted_timeseries != 0)
 
 	else:
 		dependant_timeseries = (regression_results[dependant]).mean(dim=('x','y'))
-		predicted_timeseries = (regression_results.prediction).mean(dim=('x','y'))
+		predicted_timeseries = (regression_results['prediction_'+'_'.join(independant)]).mean(dim=('x','y'))
 		predicted_timeseries = predicted_timeseries.where(predicted_timeseries != 0)
 
 	corr = xr.corr(dependant_timeseries, predicted_timeseries).values
@@ -491,11 +502,11 @@ def indicies_stats(bigdata, regression_results,dependant, independant,projection
 	
 	for ind in independant:
 		ind = [ind]
-		data = bigdata[[dependant,ind[0]]].dropna(dim='time').copy()
+		data = bigdata[[dependant,ind[0]]].copy()
 		subregression_results = multiple_fast_regression(data, dependant, ind)
 
 		# Spatial trend correlation
-		prediction_trend = subregression_results.prediction.polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
+		prediction_trend = subregression_results['prediction_'+ind[0]].polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
 		dependant_trend  = subregression_results[dependant].polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
 		corr = xr.corr(dependant_trend.polyfit_coefficients, prediction_trend.polyfit_coefficients, dim = ('x','y')).values
 		results.loc[ind[0],'individual_spatial_correlation'] = corr
@@ -504,12 +515,12 @@ def indicies_stats(bigdata, regression_results,dependant, independant,projection
 		if dependant == 'seaice':	
 			area = xr.open_dataset('data/area_files/processed_nsidc.nc').area
 			dependant_timeseries = (subregression_results[dependant]*area).sum(dim=('x','y'))
-			predicted_timeseries = (subregression_results.prediction*area).sum(dim=('x','y'))
+			predicted_timeseries = (subregression_results['prediction_'+ind[0]]*area).sum(dim=('x','y'))
 			predicted_timeseries = predicted_timeseries.where(predicted_timeseries != 0)
 
 		else:
 			dependant_timeseries = (subregression_results[dependant]).mean(dim=('x','y'))
-			predicted_timeseries = (subregression_results.prediction).mean(dim=('x','y'))
+			predicted_timeseries = (subregression_results['prediction_'+ind[0]]).mean(dim=('x','y'))
 			predicted_timeseries = predicted_timeseries.where(predicted_timeseries != 0)
 
 		corr = xr.corr(dependant_timeseries, predicted_timeseries).values
@@ -545,7 +556,58 @@ def indicies_stats(bigdata, regression_results,dependant, independant,projection
 	return results
 
 
-def fmt(x, pos):
-    a, b = '{:.1e}'.format(x).split('e')
+def fmt(x, pos=2):
+	if abs(x) <=999 and abs(x)> 10:
+		return f'{x:.0f}'
+	elif abs(x) <=10:
+		return f'{x:.2f}'
+	else:
+		a, b = ('{:.'+str(pos)+'e}').format(x).split('e')
+		b = int(b)
+		return r'${} \times 10^{{{}}}$'.format(a, b)
+def fmt_colorbar(x, pos):
+    a, b = '{:.2e}'.format(x).split('e')
     b = int(b)
-    return r'${} e{{{}}}$'.format(a, b)
+    return r'${} \times 10^{{{}}}$'.format(a, b)
+
+def plot_variable_trends(regression_results, dependant,independant):
+	"""
+	Plots the spatial distribution of each variable.
+	"""
+	variables = [f'{ind}' for ind in independant]
+
+	N = len(variables)
+	gradient = regression_results[variables].polyfit(dim='time', deg=1).sel(degree=1) * 1e9*60*60*24*365
+
+	fig = plt.figure(figsize=(5*N,5))
+	max_ = max([gradient[indexname].max() for indexname in gradient])
+	min_ = min([gradient[indexname].min() for indexname in gradient])
+	if max_>min_ and max_>0 and min_<0:
+		divnorm = TwoSlopeNorm(vmin=min_, vcenter=0, vmax=max_)
+		levels = np.linspace(min_,max_,15)
+	else:
+		sys.exit(f'min = {min_.values}, max = {max_.values}')
+	for i in range(N):
+		data = gradient[variables[i]+'_polyfit_coefficients']
+		data = data.where(np.abs(data) != 0.0)
+		ax = fig.add_subplot(1,N,i+1, projection = ccrs.SouthPolarStereo())
+		contor = ax.contourf(data.x,data.y,data.values.transpose(), cmap = 'RdBu',norm = divnorm, transform = ccrs.SouthPolarStereo(), levels = levels)
+		ax.set_title(variables[i].replace('_', '\_'))
+		ax.coastlines()
+		plt.colorbar(contor, format=ticker.FuncFormatter(fmt_colorbar))
+	fig.suptitle(f'Trends of variables')
+
+	plt.savefig(f'images/week4/individual_trends_{dependant}_'+'_'.join(independant)+'.pdf')
+
+	plt.show()
+
+def more_plotting(regression_results, dependant,independant):
+
+	v = [vi for vi in regression_results if any([ind in vi for ind in independant])] + [dependant]
+
+	regression_results = regression_results[v].copy()
+	plot_coefficients(regression_results, dependant,independant)
+	plot_variable_trends(regression_results, dependant,independant)
+	plot_individual_spatial_contributions(regression_results, dependant,independant, proportional = True)
+
+
